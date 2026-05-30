@@ -16,17 +16,26 @@
   --border-subtle: rgba(255,255,255,0.06);
   --border-normal: rgba(255,255,255,0.10);
 
-  --text-primary:   #dde4ee;
-  --text-secondary: #8895aa;
-  --text-muted:     #4e5d70;
+  --text-primary:   #e8ecf4;
+  --text-secondary: #a0adc0;
+  --text-muted:     #6b7a8f;
 
   --accent-blue:   #3b82f6;
   --accent-orange: #f97316;
   --accent-violet: #8b5cf6;
+  --accent-amber:  #fcd34d;
+
+  --accent-violet-bg:     rgba(139,92,246,0.2);
+  --accent-violet-border: rgba(139,92,246,0.4);
+  --accent-violet-text:   #c4b5fd;
+
+  --accent-amber-bg:     rgba(245,158,11,0.18);
+  --accent-amber-border: rgba(245,158,11,0.45);
+  --accent-amber-hover:  rgba(245,158,11,0.28);
 
   --tab-active-bg:   #1a2235;
-  --tab-active-text: #dde4ee;
-  --tab-text:        #4e5d70;
+  --tab-active-text: #e8ecf4;
+  --tab-text:        #6b7a8f;
 
   --history-current: rgba(59,130,246,0.12);
   --history-undo:    rgba(255,255,255,0.02);
@@ -48,17 +57,26 @@
   --border-subtle: rgba(0,0,0,0.07);
   --border-normal: rgba(0,0,0,0.12);
 
-  --text-primary:   #1a202c;
-  --text-secondary: #4a5568;
-  --text-muted:     #9aa0ad;
+  --text-primary:   #0f1419;
+  --text-secondary: #374151;
+  --text-muted:     #7a8290;
 
   --accent-blue:   #2563eb;
   --accent-orange: #ea6c00;
   --accent-violet: #7c3aed;
+  --accent-amber:  #d97706;
+
+  --accent-violet-bg:     rgba(124,58,237,0.12);
+  --accent-violet-border: rgba(124,58,237,0.3);
+  --accent-violet-text:   #7c3aed;
+
+  --accent-amber-bg:     rgba(217,119,6,0.10);
+  --accent-amber-border: rgba(217,119,6,0.25);
+  --accent-amber-hover:  rgba(217,119,6,0.15);
 
   --tab-active-bg:   #f0f2f5;
-  --tab-active-text: #1a202c;
-  --tab-text:        #9aa0ad;
+  --tab-active-text: #0f1419;
+  --tab-text:        #7a8290;
 
   --history-current: rgba(37,99,235,0.08);
   --history-undo:    rgba(0,0,0,0.02);
@@ -210,6 +228,11 @@ body {
 
 /* ── Inputs ────────────────────────────────────────────── */
 
+input[type="text"],
+input[type="number"] {
+  cursor: text;
+}
+
 input[type="range"] {
   appearance: none;
   -webkit-appearance: none;
@@ -226,7 +249,13 @@ input[type="color"] {
   border-radius: 4px;
 }
 
+input[type="checkbox"],
+input[type="radio"] {
+  cursor: pointer;
+}
+
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   opacity: 0.4;
+  cursor: pointer;
 }

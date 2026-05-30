@@ -1,15 +1,21 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { Toaster } from 'react-hot-toast'
 import { useStore } from './store/useStore'
 import { Toolbar } from './components/Toolbar'
 import { Sidebar } from './components/Sidebar'
 import { WallCanvas } from './components/WallCanvas'
 import { RightPanel } from './components/RightPanel'
 
+export type ZoomMode = 'fit' | number
+
 export default function App() {
   const undo = useStore((s) => s.undo)
   const redo = useStore((s) => s.redo)
   const initImages = useStore((s) => s.initImages)
   const theme = useStore((s) => s.theme)
+
+  const [zoomMode, setZoomMode] = useState<ZoomMode>('fit')
+  const [showLegend, setShowLegend] = useState(true)
 
   useEffect(() => { void initImages() }, [initImages])
 
@@ -31,10 +37,38 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-      <Toolbar />
+      <Toaster
+        position="bottom-center"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: 'var(--bg-elevated)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-normal)',
+            fontSize: '14px',
+          },
+          error: {
+            duration: 5000,
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: 'white',
+            },
+          },
+        }}
+      />
+      <Toolbar 
+        zoomMode={zoomMode} 
+        setZoomMode={setZoomMode}
+        showLegend={showLegend}
+        setShowLegend={setShowLegend}
+      />
       <div className="flex flex-1 min-h-0">
         <Sidebar />
-        <WallCanvas />
+        <WallCanvas 
+          zoomMode={zoomMode} 
+          setZoomMode={setZoomMode}
+          showLegend={showLegend}
+        />
         <RightPanel />
       </div>
     </div>

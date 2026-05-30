@@ -118,6 +118,21 @@ export function checkConflict(
   return false
 }
 
+export function hasAnyOverlaps(pieces: Piece[], gap: number = 0): boolean {
+  for (let i = 0; i < pieces.length; i++) {
+    for (let j = i + 1; j < pieces.length; j++) {
+      const a = pieces[i]!
+      const b = pieces[j]!
+      // Use same margin calculation as resolveOverlaps for consistency
+      const margin = gap > 0 ? Math.max(gap * 0.5, 0.25) : 0
+      const obbA = toOBB(a.x, a.y, a.w, a.h, a.rotation, a.margin + margin)
+      const obbB = toOBB(b.x, b.y, b.w, b.h, b.rotation, b.margin + margin)
+      if (obbsOverlap(obbA, obbB)) return true
+    }
+  }
+  return false
+}
+
 // ── Resize math ──────────────────────────────────────────────
 
 export function applyResize(
@@ -129,6 +144,7 @@ export function applyResize(
   rotation: number,
   localDx: number,
   localDy: number,
+  maintainAspectRatio: boolean = false,
 ): { x: number; y: number; w: number; h: number } {
   const R = (rotation * Math.PI) / 180
   const cosR = Math.cos(R)
@@ -144,8 +160,51 @@ export function applyResize(
   if (handle.includes('s')) { dh = localDy; anchorLy = -startH / 2 }
   if (handle.includes('n')) { dh = -localDy; anchorLy = startH / 2 }
 
-  const newW = Math.max(1, startW + dw)
-  const newH = Math.max(1, startH + dh)
+  let newW = Math.max(1, startW + dw)
+  let newH = Math.max(1, startH + dh)
+
+  // Maintain aspect ratio if shift is held
+  if (maintainAspectRatio && startW > 0 && startH > 0) {
+    const aspectRatio = startW / startH
+    
+    // Determine which dimension is being changed
+    const isCorner = (handle.includes('e') || handle.includes('w')) && 
+                     (handle.includes('n') || handle.includes('s'))
+    const isHorizontal = handle.includes('e') || handle.includes('w')
+    const isVertical = handle.includes('n') || handle.includes('s')
+    
+    if (isCorner) {
+      // For corner handles, use whichever dimension changed more to determine the scale
+      const wChange = Math.abs(dw)
+      const hChange = Math.abs(dh)
+      
+      if (wChange > hChange) {
+        // Width is being dragged more - use width to determine new height
+        newH = newW / aspectRatio
+        // Recalculate dh for proper anchor positioning
+        dh = newH - startH
+      } else {
+        // Height is being dragged more - use height to determine new width
+        newW = newH * aspectRatio
+        // Recalculate dw for proper anchor positioning
+        dw = newW - startW
+      }
+    } else if (isHorizontal && !isVertical) {
+      // Horizontal edge only - adjust height to maintain ratio
+      newH = newW / aspectRatio
+      // Need to adjust dh and anchor for the vertical adjustment
+      dh = newH - startH
+      // For horizontal-only handles, we need to center the vertical adjustment
+      anchorLy = 0 // Center vertically
+    } else if (isVertical && !isHorizontal) {
+      // Vertical edge only - adjust width to maintain ratio
+      newW = newH * aspectRatio
+      // Need to adjust dw and anchor for the horizontal adjustment
+      dw = newW - startW
+      // For vertical-only handles, we need to center the horizontal adjustment
+      anchorLx = 0 // Center horizontally
+    }
+  }
 
   const anchorWx = oldCx + cosR * anchorLx - sinR * anchorLy
   const anchorWy = oldCy + sinR * anchorLx + cosR * anchorLy
@@ -214,24 +273,28 @@ export function formatAngle(deg: number): string {
 export function toDisplayUnit(inches: number, unit: MeasureUnit): number {
   if (unit === 'cm') return Math.round(inches * 254) / 100
   if (unit === 'ft') return Math.round(inches / 12 * 100) / 100
+  if (unit === 'm') return Math.round(inches / 39.3701 * 1000) / 1000
   return Math.round(inches * 100) / 100
 }
 
 export function fromDisplayUnit(val: number, unit: MeasureUnit): number {
   if (unit === 'cm') return val / 2.54
   if (unit === 'ft') return val * 12
+  if (unit === 'm') return val * 39.3701
   return val
 }
 
 export function unitSuffix(unit: MeasureUnit): string {
   if (unit === 'cm') return 'cm'
   if (unit === 'ft') return 'ft'
+  if (unit === 'm') return 'm'
   return 'in'
 }
 
 export function unitStep(unit: MeasureUnit): number {
   if (unit === 'cm') return 0.5
   if (unit === 'ft') return 0.1
+  if (unit === 'm') return 0.01
   return 0.25
 }
 
@@ -245,7 +308,7 @@ export function resolveOverlaps(
   pieces: Piece[],
   wall: Wall,
   gap: number,
-  maxPasses = 20,
+  maxPasses = 100,
 ): Piece[] {
   let result = pieces.map((p) => ({ ...p }))
 
@@ -259,8 +322,8 @@ export function resolveOverlaps(
         if (a.locked && b.locked) continue
 
         const margin = Math.max(gap * 0.5, 0.25)
-        const obbA = toOBB(a.x, a.y, a.w, a.h, 0, a.margin + margin)
-        const obbB = toOBB(b.x, b.y, b.w, b.h, 0, b.margin + margin)
+        const obbA = toOBB(a.x, a.y, a.w, a.h, a.rotation, a.margin + margin)
+        const obbB = toOBB(b.x, b.y, b.w, b.h, b.rotation, b.margin + margin)
         if (!obbsOverlap(obbA, obbB)) continue
 
         anyMoved = true
@@ -271,21 +334,50 @@ export function resolveOverlaps(
         const dist = Math.sqrt(dx * dx + dy * dy) || 1
         dx /= dist; dy /= dist
 
-        const nudge = Math.max(gap, 0.5)
-        const push = nudge * 0.55
+        // More aggressive push: use size of overlapping pieces + gap
+        const sizeA = Math.sqrt(a.w * a.w + a.h * a.h)
+        const sizeB = Math.sqrt(b.w * b.w + b.h * b.h)
+        const avgSize = (sizeA + sizeB) / 4
+        const push = Math.max(avgSize, gap * 2, 2.0)
 
-        if (!a.locked) {
+        if (!a.locked && !b.locked) {
+          // Both unlocked - push both away from each other
+          const newAX = a.x - dx * push * 0.5
+          const newAY = a.y - dy * push * 0.5
+          const clampedA = clampPos(newAX, newAY, a.w, a.h, wall, a.margin + gap)
           result[i] = {
             ...a,
-            x: Math.max(0, Math.min(a.x - dx * push, wall.width - a.w)),
-            y: Math.max(0, Math.min(a.y - dy * push, wall.height - a.h)),
+            x: clampedA.x,
+            y: clampedA.y,
           }
-        }
-        if (!b.locked) {
+
+          const newBX = b.x + dx * push * 0.5
+          const newBY = b.y + dy * push * 0.5
+          const clampedB = clampPos(newBX, newBY, b.w, b.h, wall, b.margin + gap)
           result[j] = {
             ...b,
-            x: Math.max(0, Math.min(b.x + dx * push, wall.width - b.w)),
-            y: Math.max(0, Math.min(b.y + dy * push, wall.height - b.h)),
+            x: clampedB.x,
+            y: clampedB.y,
+          }
+        } else if (!a.locked) {
+          // Only a is unlocked
+          const newX = a.x - dx * push
+          const newY = a.y - dy * push
+          const clamped = clampPos(newX, newY, a.w, a.h, wall, a.margin + gap)
+          result[i] = {
+            ...a,
+            x: clamped.x,
+            y: clamped.y,
+          }
+        } else if (!b.locked) {
+          // Only b is unlocked
+          const newX = b.x + dx * push
+          const newY = b.y + dy * push
+          const clamped = clampPos(newX, newY, b.w, b.h, wall, b.margin + gap)
+          result[j] = {
+            ...b,
+            x: clamped.x,
+            y: clamped.y,
           }
         }
       }
@@ -304,32 +396,31 @@ export function swapShuffle(pieces: Piece[]): Piece[] {
   const locked = pieces.filter((p) => p.locked)
   if (unlocked.length < 2) return pieces
 
-  const sorted = [...unlocked].sort((a, b) => a.w * a.h - b.w * b.h)
-  const groups: Piece[][] = []
-  let group: Piece[] = [sorted[0]!]
-
-  for (let i = 1; i < sorted.length; i++) {
-    const prev = sorted[i - 1]!
-    const curr = sorted[i]!
-    const diff = Math.abs(curr.w * curr.h - prev.w * prev.h) / (prev.w * prev.h)
-    if (diff <= 0.3) {
-      group.push(curr)
-    } else {
-      groups.push(group)
-      group = [curr]
-    }
+  // Group by exact dimensions (width and height must match exactly)
+  const dimensionMap = new Map<string, Piece[]>()
+  
+  for (const piece of unlocked) {
+    const key = `${piece.w},${piece.h}`
+    const group = dimensionMap.get(key) || []
+    group.push(piece)
+    dimensionMap.set(key, group)
   }
-  groups.push(group)
 
   const posMap = new Map<string, { x: number; y: number; rotation: number }>()
-  for (const g of groups) {
-    if (g.length < 2) continue
-    const positions = g.map((p) => ({ x: p.x, y: p.y, rotation: p.rotation }))
+  
+  // Shuffle positions within each exact dimension group
+  for (const group of dimensionMap.values()) {
+    if (group.length < 2) continue
+    
+    const positions = group.map((p) => ({ x: p.x, y: p.y, rotation: p.rotation }))
+    
+    // Fisher-Yates shuffle
     for (let i = positions.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
       ;[positions[i], positions[j]] = [positions[j]!, positions[i]!]
     }
-    g.forEach((p, i) => posMap.set(p.id, positions[i]!))
+    
+    group.forEach((p, i) => posMap.set(p.id, positions[i]!))
   }
 
   return [
@@ -453,10 +544,14 @@ export function crossCluster(
   const locked = pieces.filter((p) => p.locked)
   if (unlocked.length === 0) return pieces
 
-  const sorted = [...unlocked].sort((a, b) => b.h / b.w - a.h / a.w)
-  const nVert = Math.ceil(sorted.length / 2)
-  const spinePieces = sorted.slice(0, nVert)
-  const armPieces = sorted.slice(nVert)
+  // Shuffle pieces for randomness
+  const shuffled = [...unlocked].sort(() => Math.random() - 0.5)
+  
+  // Randomize the split between spine and arms (40-60%)
+  const spineRatio = 0.4 + Math.random() * 0.2
+  const nVert = Math.max(1, Math.ceil(shuffled.length * spineRatio))
+  const spinePieces = shuffled.slice(0, nVert)
+  const armPieces = shuffled.slice(nVert)
 
   const posMap = new Map<string, { x: number; y: number }>()
 
@@ -467,8 +562,11 @@ export function crossCluster(
   const armMaxH = armPieces.length > 0
     ? armPieces.reduce((m, p) => Math.max(m, p.h + 2 * p.margin), 0) : 0
 
-  const cx = wall.width / 2
-  const cy = wall.height / 2
+  // Add randomness to center position (±15% of wall size)
+  const cxJitter = (Math.random() - 0.5) * wall.width * 0.3
+  const cyJitter = (Math.random() - 0.5) * wall.height * 0.3
+  const cx = wall.width / 2 + cxJitter
+  const cy = wall.height / 2 + cyJitter
 
   let y = cy - spineTotalH / 2
   for (const p of spinePieces) {
@@ -478,7 +576,8 @@ export function crossCluster(
     y += p.h + 2 * pm + gap
   }
 
-  const leftCount = Math.floor(armPieces.length / 2)
+  // Randomize split between left and right arms
+  const leftCount = Math.floor(armPieces.length * (0.4 + Math.random() * 0.2))
   const leftArm = armPieces.slice(0, leftCount)
   const rightArm = armPieces.slice(leftCount)
   const armY = cy - armMaxH / 2
@@ -657,11 +756,15 @@ export function columnCluster(
 
   const posMap = new Map<string, { x: number; y: number }>()
   let y = startY
-  for (const p of sorted) {
+  for (let i = 0; i < sorted.length; i++) {
+    const p = sorted[i]!
     const pm = p.margin
     const xOff = (maxW - p.w - 2 * pm) / 2
     posMap.set(p.id, { x: colX + pm + xOff, y: y + pm })
-    y += p.h + 2 * pm + gap
+    y += p.h + 2 * pm
+    if (i < sorted.length - 1) {
+      y += gap
+    }
   }
 
   return applyClusterMap(unlocked, locked, posMap, wall, gap, snapEnabled, gridSize)
@@ -720,4 +823,53 @@ export function scatteredCluster(
   }
 
   return applyClusterMap(unlocked, locked, posMap, wall, gap, snapEnabled, gridSize)
+}
+
+// -- Feasibility check ----------------------------------------
+
+export function checkClusterFeasibility(
+  pieces: Piece[],
+  wall: Wall,
+  gap: number,
+): { feasible: boolean; reason?: string } {
+  const unlocked = pieces.filter((p) => !p.locked)
+  
+  // Calculate total area needed including margins and gaps
+  let totalArea = 0
+  for (const p of unlocked) {
+    const marginedW = p.w + 2 * p.margin
+    const marginedH = p.h + 2 * p.margin
+    totalArea += marginedW * marginedH
+  }
+  
+  // Add approximate gap area (conservative estimate)
+  // Assuming pieces are arranged somewhat efficiently, gaps add roughly:
+  // perimeter-ish gaps = sqrt(n) * average_size * gap
+  const avgSize = Math.sqrt(totalArea / Math.max(unlocked.length, 1))
+  const gapArea = Math.sqrt(unlocked.length) * avgSize * gap * 2
+  
+  const wallArea = wall.width * wall.height
+  const usableArea = wallArea * 0.95 // Leave 5% margin for inefficiency
+  
+  if (totalArea + gapArea > usableArea) {
+    return {
+      feasible: false,
+      reason: `Not enough space: need ~${Math.ceil((totalArea + gapArea) / 144)} sq ft but wall is ${Math.ceil(wallArea / 144)} sq ft`,
+    }
+  }
+  
+  // Check if any single piece is too large
+  for (const p of unlocked) {
+    const marginedW = p.w + 2 * p.margin + 2 * gap
+    const marginedH = p.h + 2 * p.margin + 2 * gap
+    
+    if (marginedW > wall.width || marginedH > wall.height) {
+      return {
+        feasible: false,
+        reason: `"${p.name}" (${Math.round(p.w)}" � ${Math.round(p.h)}") is too large for the wall`,
+      }
+    }
+  }
+  
+  return { feasible: true }
 }

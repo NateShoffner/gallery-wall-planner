@@ -1,11 +1,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import toast from 'react-hot-toast'
 import { COLORS, DEFAULT_PIECE_MARGIN, DEFAULT_GAP, DEMO_SPECS } from '../lib/constants'
 import {
   getRandomPos, placeWithoutOverlap, swapShuffle,
   compactCluster, crossCluster, diagonalCluster, brickCluster,
   gridCluster, columnCluster, scatteredCluster,
-  snapRotation, resolveOverlaps,
+  snapRotation, resolveOverlaps, checkClusterFeasibility, hasAnyOverlaps,
 } from '../lib/utils'
 import {
   storeImage, getAllImages, deleteImage, clearAllImages, fileToDataUrl,
@@ -65,6 +66,7 @@ interface StoreState {
   cluster(): void
   loadDemo(): void
   clearAll(): void
+  resetEverything(): Promise<void>
 
   // ── History ───────────────────────────────────────────────
   pushHistory(label?: string): void
@@ -82,8 +84,9 @@ interface StoreState {
 
   // ── Import / Export ───────────────────────────────────────
   exportLayout(): Promise<void>
-  exportAsImage(): Promise<void>
+  exportAsImage(format?: 'png' | 'webp' | 'svg'): Promise<void>
   importLayout(file: File): Promise<void>
+  _generateSVG(): Promise<string>
 }
 
 function pickColor(index: number): string {
@@ -118,10 +121,14 @@ function migratePiece(p: Record<string, unknown>): Piece {
 function pickRandomPattern(enabled: ClusterPattern[]): ClusterPattern {
   const pool = enabled.length > 0 ? enabled : ALL_PATTERNS
   // When multiple patterns are available, never pick the same one twice in a row
-  const candidates = pool.length > 1 ? pool.filter((p) => p !== _lastClusterPattern) : pool
-  const chosen = candidates[Math.floor(Math.random() * candidates.length)]!
-  _lastClusterPattern = chosen
-  return chosen
+  if (pool.length > 1) {
+    const candidates = pool.filter((p) => p !== _lastClusterPattern)
+    const chosen = candidates[Math.floor(Math.random() * candidates.length)]!
+    _lastClusterPattern = chosen
+    return chosen
+  }
+  // With only one pattern, just return it (no filtering needed)
+  return pool[0]!
 }
 
 const CLUSTER_FNS: Record<ClusterPattern, typeof compactCluster> = {
@@ -157,8 +164,8 @@ export const useStore = create<StoreState>()(
       // ── Layout ──────────────────────────────────────────
 
       setWall(w, h) {
-        get().pushHistory('Resize wall')
         set((s) => ({ wall: { ...s.wall, width: w, height: h } }))
+        get().pushHistory('Resize wall')
       },
       setBgColor(color) {
         set((s) => ({ wall: { ...s.wall, bgColor: color } }))
@@ -193,11 +200,11 @@ export const useStore = create<StoreState>()(
 
       addPiece(w, h) {
         const s = get()
-        s.pushHistory('Add canvas')
+        s.pushHistory('Add item')
         const pos = getRandomPos(w, h, s.wall, s.gap)
         const piece: Piece = {
           id: `p${s._nextId}`,
-          name: `Canvas ${s._nextId}`,
+          name: `Item ${s._nextId}`,
           w,
           h,
           x: pos.x,
@@ -217,7 +224,7 @@ export const useStore = create<StoreState>()(
       },
 
       removePiece(id) {
-        get().pushHistory('Remove canvas')
+        get().pushHistory('Remove item')
         const piece = get().pieces.find((p) => p.id === id)
         if (piece?.imageId) void deleteImage(piece.imageId)
         set((s) => ({
@@ -245,7 +252,7 @@ export const useStore = create<StoreState>()(
       },
 
       rotatePiece(id, delta) {
-        get().pushHistory('Rotate canvas')
+        get().pushHistory('Rotate item')
         const { snapEnabled } = get()
         set((s) => ({
           pieces: s.pieces.map((p) =>
@@ -273,14 +280,46 @@ export const useStore = create<StoreState>()(
       },
 
       cluster() {
-        get().pushHistory('Cluster')
         const { pieces, wall, gap, snapEnabled, gridSize, enabledPatterns, allowOverlap } = get()
-        const pattern = pickRandomPattern(enabledPatterns)
-        const fn = CLUSTER_FNS[pattern]
-        let clustered = fn(pieces, wall, gap, snapEnabled, gridSize)
-        if (!allowOverlap) {
-          clustered = resolveOverlaps(clustered, wall, gap)
+        
+        // Check feasibility before clustering
+        const feasibilityCheck = checkClusterFeasibility(pieces, wall, gap)
+        if (!feasibilityCheck.feasible) {
+          toast.error(`Cannot cluster: ${feasibilityCheck.reason}\n\nTry: reducing gap, enabling overlap, or using a larger wall.`)
+          return
         }
+        
+        // Try multiple times to find a valid layout without overlaps
+        const maxAttempts = allowOverlap ? 1 : 10
+        let clustered: Piece[] | null = null
+        
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          const pattern = pickRandomPattern(enabledPatterns)
+          const fn = CLUSTER_FNS[pattern]
+          let candidate = fn(pieces, wall, gap, snapEnabled, gridSize)
+          
+          if (!allowOverlap) {
+            candidate = resolveOverlaps(candidate, wall, gap)
+            
+            // Check if overlaps still exist after resolution
+            if (!hasAnyOverlaps(candidate, gap)) {
+              clustered = candidate
+              break
+            }
+          } else {
+            clustered = candidate
+            break
+          }
+        }
+        
+        // If we couldn't find a valid layout after all attempts
+        if (!clustered) {
+          toast.error(`Cannot cluster without overlaps.\n\nThe items are too large for the wall space with the current gap (${gap}"). Try:\n• Reducing the gap between items\n• Enabling overlap in settings\n• Using a larger wall`)
+          return
+        }
+        
+        // Only push history if clustering succeeded
+        get().pushHistory('Cluster')
         set({ pieces: clustered, selectedId: null })
       },
 
@@ -295,7 +334,7 @@ export const useStore = create<StoreState>()(
           const pos = placeWithoutOverlap({ w: spec.w, h: spec.h, margin: pm }, pieces, wall, gap)
           pieces.push({
             id: `p${i + 1}`,
-            name: `Canvas ${i + 1}`,
+            name: `Item ${i + 1}`,
             w: spec.w,
             h: spec.h,
             x: pos.x,
@@ -319,6 +358,30 @@ export const useStore = create<StoreState>()(
           selectedId: null,
           imageCache: s.wall.imageId ? { [s.wall.imageId]: s.imageCache[s.wall.imageId]! } : {},
         }))
+      },
+
+      async resetEverything() {
+        // Clear all images from IndexedDB
+        await clearAllImages()
+        
+        // Reset to initial state
+        set({
+          wall: { width: 96, height: 60, bgColor: '#F5F0E8', imageId: null, workArea: null },
+          gap: DEFAULT_GAP,
+          snapEnabled: false,
+          gridSize: 24,
+          allowOverlap: false,
+          unit: 'in',
+          theme: 'dark',
+          enabledPatterns: [...ALL_PATTERNS],
+          pieces: [],
+          selectedId: null,
+          _nextId: 1,
+          _colorIndex: 0,
+          undoStack: [],
+          redoStack: [],
+          imageCache: {},
+        })
       },
 
       // ── History ─────────────────────────────────────────
@@ -457,8 +520,23 @@ export const useStore = create<StoreState>()(
 
       // ── Import / Export ──────────────────────────────────
 
-      async exportAsImage() {
+      async exportAsImage(format: 'png' | 'webp' | 'svg' = 'png') {
         const { wall, pieces, imageCache } = get()
+        
+        if (format === 'svg') {
+          // SVG export
+          const svg = await get()._generateSVG()
+          const blob = new Blob([svg], { type: 'image/svg+xml' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `canvas-layout-${new Date().toISOString().slice(0, 10)}.svg`
+          a.click()
+          URL.revokeObjectURL(url)
+          return
+        }
+        
+        // PNG/WebP export
         const PX_PER_IN = 12  // output resolution: 12px per inch → 72dpi for 8ft wall = 1152px wide
         const canvasW = Math.round(wall.width * PX_PER_IN)
         const canvasH = Math.round(wall.height * PX_PER_IN)
@@ -530,15 +608,56 @@ export const useStore = create<StoreState>()(
           ctx.restore()
         }
 
+        const mimeType = format === 'webp' ? 'image/webp' : 'image/png'
+        const extension = format === 'webp' ? 'webp' : 'png'
+        
         offscreen.toBlob((blob) => {
           if (!blob) return
           const url = URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.href = url
-          a.download = `canvas-layout-${new Date().toISOString().slice(0, 10)}.png`
+          a.download = `canvas-layout-${new Date().toISOString().slice(0, 10)}.${extension}`
           a.click()
           URL.revokeObjectURL(url)
-        }, 'image/png')
+        }, mimeType)
+      },
+
+      async _generateSVG(): Promise<string> {
+        const { wall, pieces } = get()
+        const PX_PER_IN = 12
+        const canvasW = wall.width * PX_PER_IN
+        const canvasH = wall.height * PX_PER_IN
+        
+        let svg = `<?xml version="1.0" encoding="UTF-8"?>\n`
+        svg += `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasW}" height="${canvasH}" viewBox="0 0 ${canvasW} ${canvasH}">\n`
+        
+        // Background
+        svg += `  <rect width="${canvasW}" height="${canvasH}" fill="${wall.bgColor}"/>\n`
+        
+        // Pieces
+        for (const piece of pieces) {
+          const px = piece.x * PX_PER_IN
+          const py = piece.y * PX_PER_IN
+          const pw = piece.w * PX_PER_IN
+          const ph = piece.h * PX_PER_IN
+          const cx = px + pw / 2
+          const cy = py + ph / 2
+          
+          const transform = `translate(${cx}, ${cy}) rotate(${piece.rotation})`
+          
+          svg += `  <g transform="${transform}">\n`
+          svg += `    <rect x="${-pw / 2}" y="${-ph / 2}" width="${pw}" height="${ph}" fill="${piece.color}"/>\n`
+          
+          // Label
+          const label = piece.name || `${piece.w}"×${piece.h}"`
+          const fontSize = Math.max(10, Math.min(20, pw * 0.14))
+          svg += `    <text x="0" y="0" text-anchor="middle" dominant-baseline="middle" font-family="Inter, sans-serif" font-size="${fontSize}" font-weight="600" fill="rgba(255,255,255,0.85)">${label}</text>\n`
+          
+          svg += `  </g>\n`
+        }
+        
+        svg += `</svg>`
+        return svg
       },
 
       async exportLayout() {

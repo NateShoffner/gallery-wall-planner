@@ -1,4 +1,4 @@
-export type MeasureUnit = 'in' | 'cm' | 'ft'
+export type MeasureUnit = 'in' | 'cm' | 'ft' | 'm'
 export type ClusterPattern =
   | 'shelf'
   | 'cross'

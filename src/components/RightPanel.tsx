@@ -95,7 +95,7 @@ function PatternSvg({ pattern }: { pattern: ClusterPattern }) {
 function Label({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
   return (
     <span
-      className="text-xs font-medium flex-shrink-0"
+      className="text-sm font-medium flex-shrink-0"
       style={{ color: 'var(--text-muted)', minWidth: wide ? 72 : 52 }}
     >
       {children}
@@ -106,11 +106,11 @@ function Label({ children, wide }: { children: React.ReactNode; wide?: boolean }
 function SectionHeader({ children, sub }: { children: React.ReactNode; sub?: string }) {
   return (
     <div className="px-4 pt-4 pb-2 section-block">
-      <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+      <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
         {children}
       </div>
       {sub && (
-        <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>
+        <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>
           {sub}
         </div>
       )}
@@ -330,7 +330,7 @@ function WallSettings({ unit }: { unit: MeasureUnit }) {
             onChange={(e) => setW(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && apply()}
             onBlur={apply}
-            className="w-16 px-2.5 py-1.5 rounded text-sm tabular-nums"
+            className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums"
             style={inputStyle}
           />
           <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0 }}>×</span>
@@ -342,10 +342,10 @@ function WallSettings({ unit }: { unit: MeasureUnit }) {
             onChange={(e) => setH(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && apply()}
             onBlur={apply}
-            className="w-16 px-2.5 py-1.5 rounded text-sm tabular-nums"
+            className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums"
             style={inputStyle}
           />
-          <span style={{ color: 'var(--text-muted)', fontSize: 11, flexShrink: 0 }}>{suf}</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0 }}>{suf}</span>
         </FormRow>
 
         {/* Color */}
@@ -440,24 +440,52 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
 
   const dispGap = toDisplayUnit(gap, unit)
   const suf = unitSuffix(unit)
+  const [gapInput, setGapInput] = useState(String(dispGap.toFixed(unit === 'in' ? 2 : 1)))
+
+  useEffect(() => {
+    setGapInput(String(dispGap.toFixed(unit === 'in' ? 2 : 1)))
+  }, [dispGap, unit])
+
+  function applyGap() {
+    const val = parseFloat(gapInput)
+    if (!isNaN(val) && val >= 0) {
+      setGap(fromDisplayUnit(val, unit))
+    }
+  }
 
   return (
     <div className="px-4 py-3 flex flex-col gap-3 section-block">
-      <FormRow label="Gap" wide>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <Label>Gap</Label>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="number"
+              value={gapInput}
+              min={0}
+              step={unitStep(unit)}
+              onChange={(e) => setGapInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && applyGap()}
+              onBlur={applyGap}
+              className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
+              style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
+            />
+            <span className="text-xs w-6" style={{ color: 'var(--text-muted)' }}>
+              {suf}
+            </span>
+          </div>
+        </div>
         <input
           type="range"
           min={0}
-          max={unit === 'cm' ? 12.7 : unit === 'ft' ? 0.42 : 5}
+          max={unit === 'cm' ? 12.7 : unit === 'ft' ? 0.42 : unit === 'm' ? 0.127 : 5}
           step={unitStep(unit)}
           value={dispGap}
           onChange={(e) => setGap(fromDisplayUnit(parseFloat(e.target.value), unit))}
-          className="flex-1"
+          className="w-full"
           style={{ accentColor: 'var(--accent-blue)' }}
         />
-        <span className="text-xs tabular-nums w-12 text-right flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
-          {dispGap.toFixed(unit === 'in' ? 2 : 1)}{suf}
-        </span>
-      </FormRow>
+      </div>
 
       <FormRow label="Overlap" wide>
         <Toggle checked={allowOverlap} onChange={setAllowOverlap} />
@@ -502,6 +530,8 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
   const removePiece = useStore((s) => s.removePiece)
   const setPieceImage = useStore((s) => s.setPieceImage)
   const clearPieceImage = useStore((s) => s.clearPieceImage)
+  const resizePiece = useStore((s) => s.resizePiece)
+  const pushHistory = useStore((s) => s.pushHistory)
 
   const imgRef = useRef<HTMLInputElement>(null)
   const thumbnail = piece.imageId ? imageCache[piece.imageId] : null
@@ -510,8 +540,14 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
 
   const [nameLocal, setNameLocal] = useState(piece.name)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [widthInput, setWidthInput] = useState(toDisplayUnit(piece.w, unit).toFixed(unit === 'in' ? 0 : 1))
+  const [heightInput, setHeightInput] = useState(toDisplayUnit(piece.h, unit).toFixed(unit === 'in' ? 0 : 1))
 
   useEffect(() => { setNameLocal(piece.name) }, [piece.name])
+  useEffect(() => { 
+    setWidthInput(toDisplayUnit(piece.w, unit).toFixed(unit === 'in' ? 0 : 1))
+    setHeightInput(toDisplayUnit(piece.h, unit).toFixed(unit === 'in' ? 0 : 1))
+  }, [piece.w, piece.h, unit])
   useEffect(() => {
     if (!confirmDelete) return
     const id = setTimeout(() => setConfirmDelete(false), 4000)
@@ -520,6 +556,32 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
 
   function commitName() {
     if (nameLocal !== piece.name) setPieceProps(piece.id, { name: nameLocal })
+  }
+
+  function applyWidth() {
+    const val = parseFloat(widthInput)
+    if (!isNaN(val) && val > 0) {
+      const inches = fromDisplayUnit(val, unit)
+      if (Math.abs(inches - piece.w) > 0.01) {
+        pushHistory('Resize item')
+        resizePiece(piece.id, { w: inches })
+      }
+    } else {
+      setWidthInput(toDisplayUnit(piece.w, unit).toFixed(unit === 'in' ? 0 : 1))
+    }
+  }
+
+  function applyHeight() {
+    const val = parseFloat(heightInput)
+    if (!isNaN(val) && val > 0) {
+      const inches = fromDisplayUnit(val, unit)
+      if (Math.abs(inches - piece.h) > 0.01) {
+        pushHistory('Resize item')
+        resizePiece(piece.id, { h: inches })
+      }
+    } else {
+      setHeightInput(toDisplayUnit(piece.h, unit).toFixed(unit === 'in' ? 0 : 1))
+    }
   }
 
   return (
@@ -556,6 +618,44 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
           style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
           onFocus={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--accent-blue)' }}
         />
+      </div>
+
+      {/* Dimensions */}
+      <div className="px-4 py-3 flex flex-col gap-3 section-block">
+        <FormRow label="Width" wide>
+          <input
+            type="number"
+            value={widthInput}
+            min={1}
+            step={step}
+            onChange={(e) => setWidthInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && applyWidth()}
+            onBlur={applyWidth}
+            disabled={piece.locked}
+            className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums text-right disabled:opacity-50"
+            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
+          />
+          <span className="text-xs w-6" style={{ color: 'var(--text-muted)' }}>
+            {suf}
+          </span>
+        </FormRow>
+        <FormRow label="Height" wide>
+          <input
+            type="number"
+            value={heightInput}
+            min={1}
+            step={step}
+            onChange={(e) => setHeightInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && applyHeight()}
+            onBlur={applyHeight}
+            disabled={piece.locked}
+            className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums text-right disabled:opacity-50"
+            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
+          />
+          <span className="text-xs w-6" style={{ color: 'var(--text-muted)' }}>
+            {suf}
+          </span>
+        </FormRow>
       </div>
 
       {/* Position */}
@@ -687,7 +787,7 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
 
         {confirmDelete ? (
           <div className="flex items-center gap-2">
-            <span className="text-xs flex-1" style={{ color: 'var(--text-muted)' }}>Remove this canvas?</span>
+            <span className="text-xs flex-1" style={{ color: 'var(--text-muted)' }}>Remove this item?</span>
             <PanelBtn variant="warning" onClick={() => { setConfirmDelete(false); removePiece(piece.id) }}>
               <FontAwesomeIcon icon={faCheck} /> Yes
             </PanelBtn>
@@ -726,11 +826,16 @@ function SettingsTab() {
   const setTheme = useStore((s) => s.setTheme)
   const enabledPatterns = useStore((s) => s.enabledPatterns)
   const setEnabledPatterns = useStore((s) => s.setEnabledPatterns)
+  const clearAll = useStore((s) => s.clearAll)
+  const resetEverything = useStore((s) => s.resetEverything)
+
+  const [pendingAction, setPendingAction] = useState<'clear' | 'reset' | null>(null)
 
   const units: Array<{ value: MeasureUnit; label: string; short: string }> = [
     { value: 'in', label: 'Inches', short: 'in' },
     { value: 'cm', label: 'Centimeters', short: 'cm' },
     { value: 'ft', label: 'Feet', short: 'ft' },
+    { value: 'm', label: 'Meters', short: 'm' },
   ]
 
   function togglePattern(p: ClusterPattern) {
@@ -841,6 +946,90 @@ function SettingsTab() {
           </button>
         </div>
       </div>
+
+      <SectionHeader sub="Remove items or reset everything">Danger Zone</SectionHeader>
+      <div className="px-4 py-3 section-block flex flex-col gap-2">
+        {pendingAction === 'clear' ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Remove all items from the wall? This cannot be undone.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  clearAll()
+                  setPendingAction(null)
+                }}
+                className="flex-1 py-2 rounded text-xs font-semibold transition-colors"
+                style={{ 
+                  background: 'rgba(239,68,68,0.15)', 
+                  color: '#ef4444', 
+                  border: '1px solid rgba(239,68,68,0.35)' 
+                }}
+              >
+                Confirm Clear
+              </button>
+              <button
+                onClick={() => setPendingAction(null)}
+                className="flex-1 py-2 rounded text-xs font-semibold transition-colors"
+                style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : pendingAction === 'reset' ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Reset all settings, wall dimensions, and items to defaults? This will clear everything including images. This cannot be undone.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  void resetEverything()
+                  setPendingAction(null)
+                }}
+                className="flex-1 py-2 rounded text-xs font-semibold transition-colors"
+                style={{ 
+                  background: 'rgba(239,68,68,0.15)', 
+                  color: '#ef4444', 
+                  border: '1px solid rgba(239,68,68,0.35)' 
+                }}
+              >
+                Confirm Reset
+              </button>
+              <button
+                onClick={() => setPendingAction(null)}
+                className="flex-1 py-2 rounded text-xs font-semibold transition-colors"
+                style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => setPendingAction('clear')}
+              className="py-2 rounded text-xs font-semibold transition-colors"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+            >
+              Clear All Items
+            </button>
+            <button
+              onClick={() => setPendingAction('reset')}
+              className="py-2 rounded text-xs font-semibold transition-colors"
+              style={{ 
+                background: 'rgba(239,68,68,0.08)', 
+                color: '#ef4444', 
+                border: '1px solid rgba(239,68,68,0.25)' 
+              }}
+            >
+              Reset Everything
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -901,14 +1090,14 @@ export function RightPanel() {
             {selectedPiece ? (
               <>
                 <SectionHeader sub={selectedPiece.name || `${selectedPiece.w} × ${selectedPiece.h} in`}>
-                  Selected Canvas
+                  Selected Item
                 </SectionHeader>
                 <PieceProperties key={selectedId} piece={selectedPiece} unit={unit} />
               </>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Click a canvas on the wall to edit its properties
+                  Click an item on the wall to edit its properties
                 </p>
               </div>
             )}

@@ -11,7 +11,7 @@ function HistorySection() {
   const undo = useStore((s) => s.undo)
   const redo = useStore((s) => s.redo)
   const restoreSnapshot = useStore((s) => s.restoreSnapshot)
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
 
   const canUndo = undoStack.length > 0
   const canRedo = redoStack.length > 0
@@ -35,11 +35,11 @@ function HistorySection() {
         onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
       >
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+          <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
             History
           </span>
           {total > 0 && (
-            <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-muted)', opacity: 0.55 }}>
+            <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)', opacity: 0.55 }}>
               {total}
             </span>
           )}
@@ -80,8 +80,8 @@ function HistorySection() {
             style={{ background: 'var(--history-current)', border: '1px solid rgba(59,130,246,0.2)' }}
           >
             <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--accent-blue)' }} />
-            <span className="text-[11px] font-semibold" style={{ color: 'var(--accent-blue)' }}>Current</span>
-            <span className="text-[11px] ml-auto" style={{ color: 'var(--text-muted)' }}>{total} step{total !== 1 ? 's' : ''}</span>
+            <span className="text-xs font-semibold" style={{ color: 'var(--accent-blue)' }}>Current</span>
+            <span className="text-xs ml-auto" style={{ color: 'var(--text-muted)' }}>{total} step{total !== 1 ? 's' : ''}</span>
           </div>
 
           {/* Undo stack — most recent first */}
@@ -188,12 +188,12 @@ export function Sidebar() {
         style={{ borderBottom: '1px solid var(--border-subtle)' }}
       >
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-            Canvases
+          <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+            Items
           </div>
           {pieces.length > 0 && (
-            <div className="text-xs mt-0.5 tabular-nums" style={{ color: 'var(--text-muted)', opacity: 0.65 }}>
-              {pieces.length} piece{pieces.length !== 1 ? 's' : ''}
+            <div className="text-sm mt-0.5 tabular-nums" style={{ color: 'var(--text-muted)', opacity: 0.65 }}>
+              {pieces.length} item{pieces.length !== 1 ? 's' : ''}
             </div>
           )}
         </div>
@@ -221,7 +221,7 @@ export function Sidebar() {
           style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-input)' }}
         >
           <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-            New canvas size ({suf})
+            New item size ({suf})
           </div>
           <div className="flex items-center gap-2">
             <div className="flex-1 flex flex-col gap-1">
@@ -276,7 +276,7 @@ export function Sidebar() {
             className="w-full py-2 rounded-lg text-sm font-semibold transition-colors"
             style={{ background: 'var(--accent-blue)', color: 'white' }}
           >
-            Add Canvas
+            Add Item
           </button>
         </div>
       )}

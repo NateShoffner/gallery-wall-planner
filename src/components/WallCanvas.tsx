@@ -6,9 +6,9 @@ import { SCALE } from '../lib/constants'
 import { snapToGrid, snapRotation, checkOob, checkConflict, applyResize } from '../lib/utils'
 import type { Piece, ResizeHandle } from '../types'
 
-const RULER_SIZE = 22
-const PAD_SIDE = RULER_SIZE + 40
-const PAD_BOTTOM = 56
+const RULER_SIZE = 26  // Updated to match Ruler.tsx
+const PAD_SIDE = RULER_SIZE + 2  // Testing minimal padding
+const PAD_BOTTOM = 14  // Testing minimal padding
 
 interface DragState {
   pieceId: string
@@ -61,7 +61,15 @@ function getPieceEl(wallEl: HTMLElement, id: string): HTMLElement | null {
 
 type ZoomMode = 'fit' | number
 
-export function WallCanvas() {
+export function WallCanvas({
+  zoomMode,
+  setZoomMode,
+  showLegend,
+}: {
+  zoomMode: ZoomMode
+  setZoomMode: (mode: ZoomMode | ((prev: ZoomMode) => ZoomMode)) => void
+  showLegend: boolean
+}) {
   const pieces = useStore((s) => s.pieces)
   const selectedId = useStore((s) => s.selectedId)
   const wall = useStore((s) => s.wall)
@@ -69,6 +77,7 @@ export function WallCanvas() {
   const gridSize = useStore((s) => s.gridSize)
   const allowOverlap = useStore((s) => s.allowOverlap)
   const imageCache = useStore((s) => s.imageCache)
+  const unit = useStore((s) => s.unit)
   const selectPiece = useStore((s) => s.selectPiece)
   const updatePiece = useStore((s) => s.updatePiece)
   const resizePiece = useStore((s) => s.resizePiece)
@@ -85,15 +94,10 @@ export function WallCanvas() {
 
   useEffect(() => { piecesRef.current = pieces })
 
-  // ── Legend visibility ───────────────────────────────────────
-
-  const [showLegend, setShowLegend] = useState(true)
-
   // ── Zoom / display scale ────────────────────────────────────
 
-  const [zoomMode, setZoomMode] = useState<ZoomMode>('fit')
   const [fitScale, setFitScale] = useState(SCALE)
-  const [manualScale, setManualScale] = useState(SCALE)
+  const [manualScale, _setManualScale] = useState(SCALE)
 
   const displayScale = zoomMode === 'fit' ? fitScale : manualScale
 
@@ -124,24 +128,6 @@ export function WallCanvas() {
   useEffect(() => {
     interactionRef.current = { snapEnabled, gridSize, wall, displayScale, allowOverlap }
   })
-
-  function handleZoomIn() {
-    const base = zoomMode === 'fit' ? fitScale : manualScale
-    const next = Math.min(32, Math.round((base + 1) * 10) / 10)
-    setManualScale(next)
-    setZoomMode(next)
-  }
-
-  function handleZoomOut() {
-    const base = zoomMode === 'fit' ? fitScale : manualScale
-    const next = Math.max(2, Math.round((base - 1) * 10) / 10)
-    setManualScale(next)
-    setZoomMode(next)
-  }
-
-  function handleFit() {
-    setZoomMode('fit')
-  }
 
   // ── Piece drag start ────────────────────────────────────────
 
@@ -333,6 +319,7 @@ export function WallCanvas() {
           rs.startX, rs.startY, rs.startW, rs.startH,
           rs.rotation,
           localDx, localDy,
+          e.shiftKey, // Maintain aspect ratio when shift is held
         )
 
         rs.currentX = result.x
@@ -372,7 +359,7 @@ export function WallCanvas() {
           }
           updatePiece(drag.pieceId, { x: drag.startX, y: drag.startY })
         } else {
-          pushHistory('Move canvas')
+          pushHistory('Move item')
           updatePiece(drag.pieceId, { x: drag.currentX, y: drag.currentY })
         }
         dragRef.current = null
@@ -393,7 +380,7 @@ export function WallCanvas() {
           }
           updatePiece(rot.pieceId, { rotation: rot.startRotation })
         } else {
-          pushHistory('Rotate canvas')
+          pushHistory('Rotate item')
           updatePiece(rot.pieceId, { rotation: rot.currentRotation })
         }
         rotateRef.current = null
@@ -401,7 +388,7 @@ export function WallCanvas() {
 
       if (resizeRef.current) {
         const rs = resizeRef.current
-        pushHistory('Resize canvas')
+        pushHistory('Resize item')
         resizePiece(rs.pieceId, {
           x: rs.currentX,
           y: rs.currentY,
@@ -457,8 +444,6 @@ export function WallCanvas() {
     zIndex: 0,
   } : null
 
-  const isFit = zoomMode === 'fit'
-
   return (
     <div
       ref={containerRef}
@@ -479,6 +464,7 @@ export function WallCanvas() {
             orientation="horizontal"
             totalInches={wall.width}
             scale={displayScale}
+            unit={unit}
             style={{ position: 'absolute', top: PAD_SIDE - RULER_SIZE, left: PAD_SIDE, zIndex: 2 }}
           />
         )}
@@ -488,6 +474,7 @@ export function WallCanvas() {
             orientation="vertical"
             totalInches={wall.height}
             scale={displayScale}
+            unit={unit}
             style={{ position: 'absolute', top: PAD_SIDE, left: PAD_SIDE - RULER_SIZE, zIndex: 2 }}
           />
         )}
@@ -536,65 +523,6 @@ export function WallCanvas() {
               onResizeMousedown={handleResizeMousedown}
             />
           ))}
-        </div>
-
-        {/* Bottom controls: zoom + legend toggle */}
-        <div
-          className="absolute flex items-center gap-2 select-none"
-          style={{ top: PAD_SIDE + wallH + 12, left: PAD_SIDE }}
-        >
-          {/* Zoom controls */}
-          <div className="flex items-center gap-0.5">
-            <button
-              onClick={handleZoomOut}
-              className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold transition-colors"
-              style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
-              title="Zoom out"
-            >
-              −
-            </button>
-            <button
-              onClick={handleFit}
-              className="px-2 h-6 rounded text-xs font-semibold transition-colors flex-shrink-0"
-              style={{
-                background: isFit ? 'rgba(59,130,246,0.15)' : 'var(--bg-elevated)',
-                color: isFit ? '#93c5fd' : 'var(--text-muted)',
-                border: `1px solid ${isFit ? 'rgba(59,130,246,0.35)' : 'var(--border-subtle)'}`,
-                minWidth: 44,
-                textAlign: 'center',
-              }}
-              title={isFit ? 'Auto-fit active — click to fix scale' : 'Click to fit wall to screen'}
-            >
-              {isFit ? 'Fit' : `${Math.round(displayScale * 10) / 10}px`}
-            </button>
-            <button
-              onClick={handleZoomIn}
-              className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold transition-colors"
-              style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
-              title="Zoom in"
-            >
-              +
-            </button>
-          </div>
-
-          {/* Size info */}
-          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', fontFamily: 'monospace' }}>
-            {wall.width} × {wall.height} in
-          </span>
-
-          {/* Legend (rulers) toggle */}
-          <button
-            onClick={() => setShowLegend((v) => !v)}
-            className="px-2 h-6 rounded text-xs transition-colors flex-shrink-0"
-            style={{
-              background: showLegend ? 'rgba(255,255,255,0.06)' : 'transparent',
-              color: showLegend ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.15)',
-              border: '1px solid transparent',
-            }}
-            title={showLegend ? 'Hide rulers' : 'Show rulers'}
-          >
-            {showLegend ? 'Rulers on' : 'Rulers off'}
-          </button>
         </div>
       </div>
     </div>
