@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Toaster } from 'react-hot-toast'
 import { useStore } from './store/useStore'
 import { Toolbar } from './components/Toolbar'
 import { Sidebar } from './components/Sidebar'
@@ -12,9 +13,10 @@ export default function App() {
   const redo = useStore((s) => s.redo)
   const initImages = useStore((s) => s.initImages)
   const theme = useStore((s) => s.theme)
+  const showRulers = useStore((s) => s.showRulers)
 
   const [zoomMode, setZoomMode] = useState<ZoomMode>('fit')
-  const [showLegend, setShowLegend] = useState(true)
+  const [previewMode, setPreviewMode] = useState(false)
 
   useEffect(() => { void initImages() }, [initImages])
 
@@ -36,20 +38,53 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+      <Toaster 
+        position="top-center"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: 'var(--bg-elevated)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-normal)',
+            borderRadius: '6px',
+            padding: '12px 16px',
+            fontSize: '14px',
+          },
+          success: {
+            style: {
+              background: 'var(--bg-elevated)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--accent-blue)',
+            },
+          },
+          error: {
+            style: {
+              background: 'var(--bg-elevated)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--accent-orange)',
+            },
+            iconTheme: {
+              primary: 'var(--accent-orange)',
+              secondary: 'var(--bg-elevated)',
+            },
+          },
+        }}
+      />
       <Toolbar 
         zoomMode={zoomMode} 
         setZoomMode={setZoomMode}
-        showLegend={showLegend}
-        setShowLegend={setShowLegend}
+        previewMode={previewMode}
+        setPreviewMode={setPreviewMode}
       />
       <div className="flex flex-1 min-h-0">
-        <Sidebar />
+        {!previewMode && <Sidebar />}
         <WallCanvas 
           zoomMode={zoomMode} 
           setZoomMode={setZoomMode}
-          showLegend={showLegend}
+          showLegend={showRulers}
+          previewMode={previewMode}
         />
-        <RightPanel />
+        {!previewMode && <RightPanel />}
       </div>
     </div>
   )

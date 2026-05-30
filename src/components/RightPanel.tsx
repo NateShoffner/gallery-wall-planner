@@ -7,6 +7,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons'
 import { useStore } from '../store/useStore'
 import { toDisplayUnit, fromDisplayUnit, unitSuffix, unitStep } from '../lib/utils'
+import { PATTERN_LABELS } from '../lib/constants'
 import type { Piece, MeasureUnit, ClusterPattern, WorkArea } from '../types'
 import { WallAreaModal } from './WallAreaModal'
 
@@ -83,6 +84,45 @@ function PatternSvg({ pattern }: { pattern: ClusterPattern }) {
         <rect x="6" y="26" width="16" height="12" rx="1.5" fill={fill} opacity={opacity} transform="rotate(6 14 32)" />
         <rect x="30" y="24" width="10" height="14" rx="1.5" fill={fill} opacity={opacity} transform="rotate(-4 35 31)" />
         <rect x="44" y="27" width="13" height="11" rx="1.5" fill={fill} opacity={opacity} transform="rotate(7 50 32)" />
+      </svg>
+    ),
+    circular: (
+      <svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="22" y="4" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="42" y="10" width="14" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="44" y="24" width="12" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="24" y="30" width="14" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="4" y="24" width="12" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="4" y="10" width="14" height="10" rx="1.5" fill={fill} opacity={opacity} />
+      </svg>
+    ),
+    pyramid: (
+      <svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="22" y="4" width="16" height="8" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="14" y="16" width="14" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="30" y="16" width="14" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="4" y="30" width="18" height="11" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="24" y="30" width="12" height="11" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="38" y="30" width="18" height="11" rx="1.5" fill={fill} opacity={opacity} />
+      </svg>
+    ),
+    spiral: (
+      <svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="22" y="17" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="40" y="17" width="14" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="42" y="30" width="12" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="20" y="32" width="14" height="8" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="4" y="26" width="12" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="6" y="12" width="12" height="10" rx="1.5" fill={fill} opacity={opacity} />
+      </svg>
+    ),
+    centered: (
+      <svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="20" y="14" width="20" height="12" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="24" y="6" width="12" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="14" y="22" width="14" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="32" y="24" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="22" y="30" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
       </svg>
     ),
   }
@@ -431,12 +471,20 @@ function WallSettings({ unit }: { unit: MeasureUnit }) {
 function LayoutSettings({ unit }: { unit: MeasureUnit }) {
   const gap = useStore((s) => s.gap)
   const snapEnabled = useStore((s) => s.snapEnabled)
+  const showGrid = useStore((s) => s.showGrid)
+  const showRulers = useStore((s) => s.showRulers)
+  const showPieceInfo = useStore((s) => s.showPieceInfo)
   const gridSize = useStore((s) => s.gridSize)
   const allowOverlap = useStore((s) => s.allowOverlap)
+  const snapToNearby = useStore((s) => s.snapToNearby)
   const setGap = useStore((s) => s.setGap)
   const setSnap = useStore((s) => s.setSnap)
+  const setShowGrid = useStore((s) => s.setShowGrid)
+  const setShowRulers = useStore((s) => s.setShowRulers)
+  const setShowPieceInfo = useStore((s) => s.setShowPieceInfo)
   const setGridSize = useStore((s) => s.setGridSize)
   const setAllowOverlap = useStore((s) => s.setAllowOverlap)
+  const setSnapToNearby = useStore((s) => s.setSnapToNearby)
 
   const dispGap = toDisplayUnit(gap, unit)
   const suf = unitSuffix(unit)
@@ -489,6 +537,13 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
         </span>
       </FormRow>
 
+      <FormRow label="Out of bounds" wide>
+        <Toggle checked={snapToNearby} onChange={setSnapToNearby} />
+        <span className="text-xs" style={{ color: snapToNearby ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+          {snapToNearby ? 'Snap to valid location' : 'Revert to original'}
+        </span>
+      </FormRow>
+
       <FormRow label="Snap" wide>
         <Toggle checked={snapEnabled} onChange={setSnap} />
         {snapEnabled && (
@@ -509,6 +564,33 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
             <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>px</span>
           </>
         )}
+      </FormRow>
+
+      <FormRow label="Grid" wide>
+        <Toggle checked={showGrid} onChange={setShowGrid} />
+        <span className="text-xs" style={{ color: showGrid ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+          {showGrid ? 'Visible' : 'Hidden'}
+        </span>
+      </FormRow>
+
+      <FormRow label="Rulers" wide>
+        <Toggle checked={showRulers} onChange={setShowRulers} />
+        <span className="text-xs" style={{ color: showRulers ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+          {showRulers ? 'Visible' : 'Hidden'}
+        </span>
+      </FormRow>
+
+      <FormRow label="Piece info" wide>
+        <select
+          value={showPieceInfo}
+          onChange={(e) => setShowPieceInfo(e.target.value as 'off' | 'hover' | 'always')}
+          className="flex-1 px-2.5 py-1.5 rounded text-sm"
+          style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
+        >
+          <option value="off">Hidden</option>
+          <option value="hover">On hover</option>
+          <option value="always">Always visible</option>
+        </select>
       </FormRow>
     </div>
   )
@@ -730,17 +812,7 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
 
 // ── Settings tab ───────────────────────────────────────────────
 
-const PATTERN_LABELS: Record<ClusterPattern, { name: string; desc: string }> = {
-  shelf: { name: 'Shelf', desc: 'Compact rows' },
-  cross: { name: 'Cross', desc: 'Plus shape' },
-  diagonal: { name: 'Diagonal', desc: 'Staircase' },
-  brick: { name: 'Brick', desc: 'Offset rows' },
-  grid: { name: 'Grid', desc: 'Even columns' },
-  column: { name: 'Column', desc: 'Single stack' },
-  scattered: { name: 'Scattered', desc: 'Organic spread' },
-}
-
-const ALL_PATTERNS: ClusterPattern[] = ['shelf', 'cross', 'diagonal', 'brick', 'grid', 'column', 'scattered']
+const ALL_PATTERNS: ClusterPattern[] = ['shelf', 'cross', 'diagonal', 'brick', 'grid', 'column', 'scattered', 'circular', 'pyramid', 'spiral', 'centered']
 
 function SettingsTab() {
   const unit = useStore((s) => s.unit)
@@ -813,10 +885,10 @@ function SettingsTab() {
         </div>
       </div>
 
-      <SectionHeader sub="Cluster picks randomly from enabled patterns">Cluster Patterns</SectionHeader>
+      <SectionHeader sub="Re-arrange picks randomly from enabled patterns">Re-arrange Patterns</SectionHeader>
       <div className="px-4 py-3 flex flex-col gap-2">
         <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
-          Toggle patterns on/off. Cluster will pick a random enabled one each time.
+          Toggle patterns on/off. Re-arrange will pick a random enabled one each time.
         </p>
         <div className="grid grid-cols-2 gap-2">
           {ALL_PATTERNS.map((p) => {
@@ -1029,6 +1101,44 @@ export function RightPanel() {
         )}
 
         {tab === 'settings' && <SettingsTab />}
+      </div>
+
+      {/* Footer */}
+      <div
+        className="flex-shrink-0 px-4 py-3 text-center text-xs"
+        style={{
+          borderTop: '1px solid var(--border-subtle)',
+          background: 'var(--bg-input)',
+          color: 'var(--text-muted)',
+        }}
+      >
+        <div className="mb-1">
+          © {new Date().getFullYear()}{' '}
+          <a
+            href="https://nateshoffner.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-blue)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
+          >
+            Nate Shoffner
+          </a>
+        </div>
+        <div>
+          All rights reserved •{' '}
+          <a
+            href={`https://github.com/NateShoffner/gallery-wall-planner/commit/${__GIT_HASH__}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontFamily: 'monospace' }}
+            onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+            onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+            title="View commit on GitHub"
+          >
+            build: {__GIT_HASH__}
+          </a>
+        </div>
       </div>
     </aside>
   )

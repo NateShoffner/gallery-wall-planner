@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPlus, faXmark, faRotateLeft, faRotateRight, faChevronDown, faChevronUp } from '@fortawesome/free-solid-svg-icons'
 import { useStore } from '../store/useStore'
-import { fromDisplayUnit, unitSuffix, toDisplayUnit } from '../lib/utils'
+import { fromDisplayUnit, unitSuffix } from '../lib/utils'
 import { PieceCard } from './PieceCard'
 
 function HistorySection() {
@@ -171,8 +171,6 @@ export function Sidebar() {
     }
   }
 
-  const totalArea = pieces.reduce((s, p) => s + toDisplayUnit(p.w * p.h, unit), 0)
-
   return (
     <aside
       className="flex-shrink-0 flex flex-col"
@@ -296,11 +294,6 @@ export function Sidebar() {
             {pieces.map((piece) => (
               <PieceCard key={piece.id} piece={piece} selected={piece.id === selectedId} />
             ))}
-            {pieces.length > 1 && (
-              <div className="px-2.5 py-2 text-xs" style={{ color: 'var(--text-muted)', opacity: 0.5 }}>
-                Total area: ~{totalArea.toFixed(0)} {unit === 'in' ? 'sq in' : `sq ${unit}`}
-              </div>
-            )}
           </>
         )}
       </div>

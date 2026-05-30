@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore'
 import { CanvasPiece } from './CanvasPiece'
 import { Ruler } from './Ruler'
 import { SCALE } from '../lib/constants'
-import { snapToGrid, snapRotation, checkOob, checkConflict, applyResize } from '../lib/utils'
+import { snapToGrid, snapRotation, checkOob, snapToNearbyValid, checkConflict, applyResize } from '../lib/utils'
 import type { Piece, ResizeHandle } from '../types'
 
 const RULER_SIZE = 26  // Updated to match Ruler.tsx
@@ -65,17 +65,22 @@ export function WallCanvas({
   zoomMode,
   setZoomMode,
   showLegend,
+  previewMode,
 }: {
   zoomMode: ZoomMode
   setZoomMode: (mode: ZoomMode | ((prev: ZoomMode) => ZoomMode)) => void
   showLegend: boolean
+  previewMode: boolean
 }) {
   const pieces = useStore((s) => s.pieces)
   const selectedId = useStore((s) => s.selectedId)
   const wall = useStore((s) => s.wall)
   const snapEnabled = useStore((s) => s.snapEnabled)
+  const showGrid = useStore((s) => s.showGrid)
+  const showPieceInfo = useStore((s) => s.showPieceInfo)
   const gridSize = useStore((s) => s.gridSize)
   const allowOverlap = useStore((s) => s.allowOverlap)
+  const snapToNearby = useStore((s) => s.snapToNearby)
   const imageCache = useStore((s) => s.imageCache)
   const unit = useStore((s) => s.unit)
   const selectPiece = useStore((s) => s.selectPiece)
@@ -101,6 +106,13 @@ export function WallCanvas({
 
   const displayScale = zoomMode === 'fit' ? fitScale : manualScale
 
+  // Update manual scale when zoomMode changes to a number
+  useEffect(() => {
+    if (typeof zoomMode === 'number') {
+      setManualScale(zoomMode)
+    }
+  }, [zoomMode])
+
   const recomputeScale = useCallback(() => {
     const el = containerRef.current
     if (!el) return
@@ -108,15 +120,26 @@ export function WallCanvas({
     if (width < 50 || height < 50) return
     const availW = width - PAD_SIDE * 2
     const availH = height - PAD_SIDE - PAD_BOTTOM
+    
+    // In preview mode with work area, fit to the full image size instead of just the work area
+    let targetW = wall.width
+    let targetH = wall.height
+    const workArea = wall.workArea
+    const hasWorkArea = !!workArea && !!imageCache[wall.imageId || '']
+    if (previewMode && hasWorkArea) {
+      targetW = wall.width / workArea.w
+      targetH = wall.height / workArea.h
+    }
+    
     const newScale = Math.max(4, Math.min(24,
-      Math.min(availW / wall.width, availH / wall.height) * 0.9
+      Math.min(availW / targetW, availH / targetH) * 0.9
     ))
     setFitScale(newScale)
     setZoomMode((z) => {
       // keep manual scale if user has set it; only auto-update fit scale
       return z
     })
-  }, [wall.width, wall.height])
+  }, [wall.width, wall.height, wall.workArea, previewMode, imageCache, wall.imageId])
 
   useEffect(() => {
     recomputeScale()
@@ -344,21 +367,39 @@ export function WallCanvas({
 
       if (dragRef.current) {
         const drag = dragRef.current
+        const piece = piecesRef.current.find((p) => p.id === drag.pieceId)
+        const pieceName = piece?.name || `${piece?.w} × ${piece?.h} ${unit}`
+        const isOob = checkOob(drag.currentX, drag.currentY, drag.pieceW, drag.pieceH, drag.pieceRot, wall)
         const hasConflict = !allowOverlap && checkConflict(
           drag.currentX, drag.currentY, drag.pieceW, drag.pieceH, drag.pieceRot, drag.pieceMargin,
           piecesRef.current, drag.pieceId,
         )
 
-        if (hasConflict) {
+        if (hasConflict || isOob) {
+          let finalX = drag.startX
+          let finalY = drag.startY
+          
+          // If out of bounds and snapToNearby is enabled, try to snap to a valid location
+          if (isOob && snapToNearby && !hasConflict) {
+            const snapped = snapToNearbyValid(drag.currentX, drag.currentY, drag.pieceW, drag.pieceH, drag.pieceRot, wall)
+            finalX = snapped.x
+            finalY = snapped.y
+          }
+          
           const el = wallEl ? getPieceEl(wallEl, drag.pieceId) : null
           if (el) {
-            el.style.left = `${drag.startX * ds}px`
-            el.style.top = `${drag.startY * ds}px`
+            el.style.left = `${finalX * ds}px`
+            el.style.top = `${finalY * ds}px`
             el.classList.remove('conflict', 'oob')
           }
-          updatePiece(drag.pieceId, { x: drag.startX, y: drag.startY })
+          updatePiece(drag.pieceId, { x: finalX, y: finalY })
+          
+          // Only push history if position actually changed
+          if (finalX !== drag.startX || finalY !== drag.startY) {
+            pushHistory(`Move ${pieceName}`)
+          }
         } else {
-          pushHistory('Move item')
+          pushHistory(`Move ${pieceName}`)
           updatePiece(drag.pieceId, { x: drag.currentX, y: drag.currentY })
         }
         dragRef.current = null
@@ -366,20 +407,48 @@ export function WallCanvas({
 
       if (rotateRef.current) {
         const rot = rotateRef.current
+        const piece = piecesRef.current.find((p) => p.id === rot.pieceId)
+        const pieceName = piece?.name || `${piece?.w} × ${piece?.h} ${unit}`
+        const isOob = checkOob(rot.pieceX, rot.pieceY, rot.pieceW, rot.pieceH, rot.currentRotation, wall)
         const hasConflict = !allowOverlap && checkConflict(
           rot.pieceX, rot.pieceY, rot.pieceW, rot.pieceH, rot.currentRotation, rot.pieceMargin,
           piecesRef.current, rot.pieceId,
         )
 
-        if (hasConflict) {
+        if (hasConflict || isOob) {
+          let finalRot = rot.startRotation
+          let finalX = rot.pieceX
+          let finalY = rot.pieceY
+          
+          // If out of bounds and snapToNearby is enabled, try to snap to a valid location with the new rotation
+          if (isOob && snapToNearby && !hasConflict) {
+            const snapped = snapToNearbyValid(rot.pieceX, rot.pieceY, rot.pieceW, rot.pieceH, rot.currentRotation, wall)
+            finalX = snapped.x
+            finalY = snapped.y
+            finalRot = rot.currentRotation
+          }
+          
           const el = wallEl ? getPieceEl(wallEl, rot.pieceId) : null
           if (el) {
-            el.style.transform = `rotate(${rot.startRotation}deg)`
+            el.style.transform = `rotate(${finalRot}deg)`
+            if (finalX !== rot.pieceX || finalY !== rot.pieceY) {
+              el.style.left = `${finalX * ds}px`
+              el.style.top = `${finalY * ds}px`
+            }
             el.classList.remove('conflict', 'oob')
           }
-          updatePiece(rot.pieceId, { rotation: rot.startRotation })
+          
+          if (finalX !== rot.pieceX || finalY !== rot.pieceY) {
+            pushHistory(`Rotate ${pieceName}`)
+            updatePiece(rot.pieceId, { x: finalX, y: finalY, rotation: finalRot })
+          } else if (finalRot !== rot.startRotation) {
+            pushHistory(`Rotate ${pieceName}`)
+            updatePiece(rot.pieceId, { rotation: finalRot })
+          } else {
+            updatePiece(rot.pieceId, { rotation: finalRot })
+          }
         } else {
-          pushHistory('Rotate item')
+          pushHistory(`Rotate ${pieceName}`)
           updatePiece(rot.pieceId, { rotation: rot.currentRotation })
         }
         rotateRef.current = null
@@ -387,7 +456,9 @@ export function WallCanvas({
 
       if (resizeRef.current) {
         const rs = resizeRef.current
-        pushHistory('Resize item')
+        const piece = piecesRef.current.find((p) => p.id === rs.pieceId)
+        const pieceName = piece?.name || `${piece?.w} × ${piece?.h} ${unit}`
+        pushHistory(`Resize ${pieceName}`)
         resizePiece(rs.pieceId, {
           x: rs.currentX,
           y: rs.currentY,
@@ -420,16 +491,27 @@ export function WallCanvas({
   const workArea = wall.workArea
   const hasWorkArea = !!wallImageUrl && !!workArea
 
+  // In preview mode with work area, show the full image
+  const showFullImage = previewMode && hasWorkArea
+
+  // Calculate canvas dimensions - in preview mode, expand to full image
+  const canvasW = showFullImage ? wallW / workArea!.w : wallW
+  const canvasH = showFullImage ? wallH / workArea!.h : wallH
+  
+  // In preview mode, calculate the offset for the container to center pieces on the full image
+  const containerOffsetX = showFullImage ? (workArea!.x / workArea!.w) * wallW : 0
+  const containerOffsetY = showFullImage ? (workArea!.y / workArea!.h) * wallH : 0
+
   // Full-image CSS values for background-size / background-position
-  const bgSize = hasWorkArea
+  const bgSize = hasWorkArea && !showFullImage
     ? `${(wallW / workArea.w)}px ${(wallH / workArea.h)}px`
     : 'cover'
-  const bgPos = hasWorkArea
+  const bgPos = hasWorkArea && !showFullImage
     ? `${-(workArea.x / workArea.w) * wallW}px ${-(workArea.y / workArea.h) * wallH}px`
     : 'center'
 
-  // Photo that extends OUTSIDE workspace (for workArea context view)
-  const fullPhotoStyle = hasWorkArea ? {
+  // Photo that extends OUTSIDE workspace (for workArea context view) - hide in preview mode
+  const fullPhotoStyle = hasWorkArea && !previewMode ? {
     position: 'absolute' as const,
     left: PAD_SIDE - (workArea.x / workArea.w) * wallW,
     top: PAD_SIDE - (workArea.y / workArea.h) * wallH,
@@ -452,13 +534,15 @@ export function WallCanvas({
       <div
         className="relative flex-shrink-0"
         style={{
-          padding: `${PAD_SIDE}px ${PAD_SIDE}px ${PAD_BOTTOM}px ${PAD_SIDE}px`,
+          padding: previewMode 
+            ? `${PAD_SIDE}px ${PAD_SIDE}px ${PAD_SIDE}px ${PAD_SIDE}px`
+            : `${PAD_SIDE}px ${PAD_SIDE}px ${PAD_BOTTOM}px ${PAD_SIDE}px`,
         }}
       >
         {/* Full photo backdrop (only when workArea is set) */}
         {fullPhotoStyle && <div style={fullPhotoStyle} />}
 
-        {showLegend && (
+        {showLegend && !previewMode && (
           <Ruler
             orientation="horizontal"
             totalInches={wall.width}
@@ -468,7 +552,7 @@ export function WallCanvas({
           />
         )}
 
-        {showLegend && (
+        {showLegend && !previewMode && (
           <Ruler
             orientation="vertical"
             totalInches={wall.height}
@@ -482,22 +566,22 @@ export function WallCanvas({
           ref={wallRef}
           className="relative select-none"
           style={{
-            width: wallW,
-            height: wallH,
+            width: canvasW,
+            height: canvasH,
             backgroundColor: hasWorkArea ? 'transparent' : wall.bgColor,
             backgroundImage: wallImageUrl ? `url(${wallImageUrl})` : undefined,
-            backgroundSize: bgSize,
-            backgroundPosition: bgPos,
-            outline: hasWorkArea ? '2px solid rgba(255,255,255,0.5)' : '1px dashed rgba(255,255,255,0.18)',
-            outlineOffset: hasWorkArea ? '2px' : '1px',
-            boxShadow: '0 4px 40px rgba(0,0,0,0.5)',
+            backgroundSize: showFullImage ? 'cover' : bgSize,
+            backgroundPosition: showFullImage ? 'center' : bgPos,
+            outline: previewMode ? 'none' : (hasWorkArea ? '2px solid rgba(255,255,255,0.5)' : '1px dashed rgba(255,255,255,0.18)'),
+            outlineOffset: previewMode ? '0' : (hasWorkArea ? '2px' : '1px'),
+            boxShadow: previewMode ? 'none' : '0 4px 40px rgba(0,0,0,0.5)',
             zIndex: 1,
           }}
           onMouseDown={(e) => {
             if (e.target === wallRef.current) selectPiece(null)
           }}
         >
-          {snapEnabled && (
+          {showGrid && !previewMode && (
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
@@ -509,19 +593,32 @@ export function WallCanvas({
             />
           )}
 
-          {pieces.map((piece) => (
-            <CanvasPiece
-              key={piece.id}
-              piece={piece}
-              selected={piece.id === selectedId}
-              wall={wall}
-              imageUrl={piece.imageId ? imageCache[piece.imageId] : undefined}
-              scale={displayScale}
-              onPieceMousedown={handlePieceMousedown}
-              onHandleMousedown={handleHandleMousedown}
-              onResizeMousedown={handleResizeMousedown}
-            />
-          ))}
+          {/* Pieces container - offset in preview mode to align with full image */}
+          <div
+            style={{
+              position: showFullImage ? 'absolute' : 'relative',
+              left: showFullImage ? containerOffsetX : 0,
+              top: showFullImage ? containerOffsetY : 0,
+              width: showFullImage ? wallW : '100%',
+              height: showFullImage ? wallH : '100%',
+            }}
+          >
+            {pieces.map((piece) => (
+              <CanvasPiece
+                key={piece.id}
+                piece={piece}
+                selected={piece.id === selectedId && !previewMode}
+                wall={wall}
+                imageUrl={piece.imageId ? imageCache[piece.imageId] : undefined}
+                scale={displayScale}
+                unit={unit}
+                showPieceInfo={previewMode ? 'off' : showPieceInfo}
+                onPieceMousedown={handlePieceMousedown}
+                onHandleMousedown={handleHandleMousedown}
+                onResizeMousedown={handleResizeMousedown}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

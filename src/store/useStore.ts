@@ -1,11 +1,13 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { COLORS, DEFAULT_PIECE_MARGIN, DEFAULT_GAP, DEMO_SPECS } from '../lib/constants'
+import toast from 'react-hot-toast'
+import { COLORS, DEFAULT_PIECE_MARGIN, DEFAULT_GAP, DEMO_SPECS, PATTERN_LABELS } from '../lib/constants'
 import {
   getRandomPos, placeWithoutOverlap, swapShuffle,
   compactCluster, crossCluster, diagonalCluster, brickCluster,
-  gridCluster, columnCluster, scatteredCluster,
-  snapRotation, resolveOverlaps, checkClusterFeasibility,
+  gridCluster, columnCluster, scatteredCluster, circularCluster,
+  pyramidCluster, spiralCluster, centeredCluster,
+  snapRotation, resolveOverlaps, checkClusterFeasibility, hasOverlaps,
 } from '../lib/utils'
 import {
   storeImage, getAllImages, deleteImage, clearAllImages, fileToDataUrl,
@@ -14,7 +16,7 @@ import type { Piece, Wall, WorkArea, HistorySnapshot, LayoutExport, MeasureUnit,
 
 const MAX_HISTORY = 50
 
-const ALL_PATTERNS: ClusterPattern[] = ['shelf', 'cross', 'diagonal', 'brick', 'grid', 'column', 'scattered']
+const ALL_PATTERNS: ClusterPattern[] = ['shelf', 'cross', 'diagonal', 'brick', 'grid', 'column', 'scattered', 'circular', 'pyramid', 'spiral', 'centered']
 
 // Session-only: track last used pattern so consecutive clicks always vary
 let _lastClusterPattern: ClusterPattern | null = null
@@ -24,8 +26,12 @@ interface StoreState {
   wall: Wall
   gap: number
   snapEnabled: boolean
+  showGrid: boolean
+  showRulers: boolean
+  showPieceInfo: 'off' | 'hover' | 'always'
   gridSize: number
   allowOverlap: boolean
+  snapToNearby: boolean
   unit: MeasureUnit
   theme: 'dark' | 'light'
   enabledPatterns: ClusterPattern[]
@@ -45,8 +51,12 @@ interface StoreState {
   setWallWorkArea(area: WorkArea | null): void
   setGap(m: number): void
   setSnap(enabled: boolean): void
+  setShowGrid(enabled: boolean): void
+  setShowRulers(enabled: boolean): void
+  setShowPieceInfo(mode: 'off' | 'hover' | 'always'): void
   setGridSize(size: number): void
   setAllowOverlap(v: boolean): void
+  setSnapToNearby(enabled: boolean): void
   setUnit(u: MeasureUnit): void
   setTheme(t: 'dark' | 'light'): void
   setEnabledPatterns(patterns: ClusterPattern[]): void
@@ -83,8 +93,9 @@ interface StoreState {
 
   // ── Import / Export ───────────────────────────────────────
   exportLayout(): Promise<void>
-  exportAsImage(): Promise<void>
+  exportAsImage(format?: 'png' | 'webp' | 'svg'): Promise<void>
   importLayout(file: File): Promise<void>
+  _generateSVG(): Promise<string>
 }
 
 function pickColor(index: number): string {
@@ -133,6 +144,10 @@ const CLUSTER_FNS: Record<ClusterPattern, typeof compactCluster> = {
   grid: gridCluster,
   column: columnCluster,
   scattered: scatteredCluster,
+  circular: circularCluster,
+  pyramid: pyramidCluster,
+  spiral: spiralCluster,
+  centered: centeredCluster,
 }
 
 export const useStore = create<StoreState>()(
@@ -142,8 +157,12 @@ export const useStore = create<StoreState>()(
       wall: { width: 96, height: 60, bgColor: '#F5F0E8', imageId: null, workArea: null },
       gap: DEFAULT_GAP,
       snapEnabled: false,
+      showGrid: true,
+      showRulers: true,
+      showPieceInfo: 'hover',
       gridSize: 24,
       allowOverlap: false,
+      snapToNearby: true,
       unit: 'in',
       theme: 'dark',
       enabledPatterns: [...ALL_PATTERNS],
@@ -173,11 +192,23 @@ export const useStore = create<StoreState>()(
       setSnap(enabled) {
         set({ snapEnabled: enabled })
       },
+      setShowGrid(enabled) {
+        set({ showGrid: enabled })
+      },
+      setShowRulers(enabled) {
+        set({ showRulers: enabled })
+      },
+      setShowPieceInfo(mode) {
+        set({ showPieceInfo: mode })
+      },
       setGridSize(size) {
         set({ gridSize: size })
       },
       setAllowOverlap(v) {
         set({ allowOverlap: v })
+      },
+      setSnapToNearby(enabled) {
+        set({ snapToNearby: enabled })
       },
       setUnit(u) {
         set({ unit: u })
@@ -218,8 +249,9 @@ export const useStore = create<StoreState>()(
       },
 
       removePiece(id) {
-        get().pushHistory('Remove item')
         const piece = get().pieces.find((p) => p.id === id)
+        const pieceName = piece?.name || `${piece?.w} × ${piece?.h} in`
+        get().pushHistory(`Remove ${pieceName}`)
         if (piece?.imageId) void deleteImage(piece.imageId)
         set((s) => ({
           pieces: s.pieces.filter((p) => p.id !== id),
@@ -239,14 +271,18 @@ export const useStore = create<StoreState>()(
       },
 
       toggleLock(id) {
-        get().pushHistory('Toggle lock')
+        const piece = get().pieces.find((p) => p.id === id)
+        const pieceName = piece?.name || `${piece?.w} × ${piece?.h} in`
+        get().pushHistory(`${piece?.locked ? 'Unlock' : 'Lock'} ${pieceName}`)
         set((s) => ({
           pieces: s.pieces.map((p) => (p.id === id ? { ...p, locked: !p.locked } : p)),
         }))
       },
 
       rotatePiece(id, delta) {
-        get().pushHistory('Rotate item')
+        const piece = get().pieces.find((p) => p.id === id)
+        const pieceName = piece?.name || `${piece?.w} × ${piece?.h} in`
+        get().pushHistory(`Rotate ${pieceName}`)
         const { snapEnabled } = get()
         set((s) => ({
           pieces: s.pieces.map((p) =>
@@ -262,7 +298,9 @@ export const useStore = create<StoreState>()(
       },
 
       setPieceProps(id, changes) {
-        get().pushHistory('Edit canvas')
+        const piece = get().pieces.find((p) => p.id === id)
+        const pieceName = piece?.name || `${piece?.w} × ${piece?.h} in`
+        get().pushHistory(`Edit ${pieceName}`)
         set((s) => ({ pieces: s.pieces.map((p) => (p.id === id ? { ...p, ...changes } : p)) }))
       },
 
@@ -276,22 +314,49 @@ export const useStore = create<StoreState>()(
       cluster() {
         const { pieces, wall, gap, snapEnabled, gridSize, enabledPatterns, allowOverlap } = get()
         
-        // Check feasibility before clustering
-        const feasibilityCheck = checkClusterFeasibility(pieces, wall, gap)
-        if (!feasibilityCheck.feasible) {
-          alert(`Cannot cluster: ${feasibilityCheck.reason}\n\nTry: reducing gap, enabling overlap, or using a larger wall.`)
+        // Check if there are any enabled patterns
+        if (enabledPatterns.length === 0) {
+          toast.error('Cannot re-arrange: No patterns are enabled. Please enable at least one pattern in the settings.')
           return
         }
         
-        get().pushHistory('Cluster')
+        // Check feasibility before clustering
+        const feasibilityCheck = checkClusterFeasibility(pieces, wall, gap)
+        if (!feasibilityCheck.feasible) {
+          toast.error(`Cannot re-arrange: ${feasibilityCheck.reason}. Try: reducing gap, enabling overlap, or using a larger wall.`)
+          return
+        }
+        
         const pattern = pickRandomPattern(enabledPatterns)
+        const patternName = PATTERN_LABELS[pattern]?.name || pattern
         const fn = CLUSTER_FNS[pattern]
         let clustered = fn(pieces, wall, gap, snapEnabled, gridSize)
         
         if (!allowOverlap) {
           clustered = resolveOverlaps(clustered, wall, gap)
+          
+          // Check if overlaps still exist after resolution
+          if (hasOverlaps(clustered, gap)) {
+            toast.error(`Cannot re-arrange with ${patternName} pattern: Pieces cannot fit without overlapping. Try: reducing gap, enabling overlap, using a larger wall, or removing some pieces.`)
+            return
+          }
         }
         
+        // Only push to history if pieces actually changed
+        const hasChanges = pieces.some((piece, i) => {
+          const clusteredPiece = clustered[i]
+          return clusteredPiece && (
+            piece.x !== clusteredPiece.x ||
+            piece.y !== clusteredPiece.y ||
+            piece.rotation !== clusteredPiece.rotation
+          )
+        })
+        
+        if (!hasChanges) {
+          return
+        }
+        
+        get().pushHistory('Re-arrange')
         set({ pieces: clustered, selectedId: null })
       },
 
@@ -502,7 +567,7 @@ export const useStore = create<StoreState>()(
           const url = URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.href = url
-          a.download = `canvas-layout-${new Date().toISOString().slice(0, 10)}.svg`
+          a.download = `wall-planner-${new Date().toISOString().slice(0, 10)}.svg`
           a.click()
           URL.revokeObjectURL(url)
           return
@@ -588,7 +653,7 @@ export const useStore = create<StoreState>()(
           const url = URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.href = url
-          a.download = `canvas-layout-${new Date().toISOString().slice(0, 10)}.${extension}`
+          a.download = `wall-planner-${new Date().toISOString().slice(0, 10)}.${extension}`
           a.click()
           URL.revokeObjectURL(url)
         }, mimeType)
@@ -648,7 +713,7 @@ export const useStore = create<StoreState>()(
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `canvas-layout-${new Date().toISOString().slice(0, 10)}.json`
+        a.download = `wall-planner-${new Date().toISOString().slice(0, 10)}.json`
         a.click()
         URL.revokeObjectURL(url)
       },

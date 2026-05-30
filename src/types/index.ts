@@ -7,6 +7,10 @@ export type ClusterPattern =
   | 'grid'
   | 'column'
   | 'scattered'
+  | 'circular'
+  | 'pyramid'
+  | 'spiral'
+  | 'centered'
 export type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 
 export interface Piece {

@@ -34,6 +34,42 @@ export function checkOob(
   return cx - bw < 0 || cx + bw > wall.width || cy - bh < 0 || cy + bh > wall.height
 }
 
+/**
+ * Find a nearby valid location for a piece that's out of bounds
+ */
+export function snapToNearbyValid(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  rotation: number,
+  wall: Wall,
+): { x: number; y: number } {
+  const cx = x + w / 2
+  const cy = y + h / 2
+  const hw = w / 2
+  const hh = h / 2
+  const rad = (rotation * Math.PI) / 180
+  const bw = hw * Math.abs(Math.cos(rad)) + hh * Math.abs(Math.sin(rad))
+  const bh = hw * Math.abs(Math.sin(rad)) + hh * Math.abs(Math.cos(rad))
+  
+  // Clamp the center to be within bounds
+  let newCx = cx
+  let newCy = cy
+  
+  if (newCx - bw < 0) newCx = bw
+  if (newCx + bw > wall.width) newCx = wall.width - bw
+  if (newCy - bh < 0) newCy = bh
+  if (newCy + bh > wall.height) newCy = wall.height - bh
+  
+  // Convert center back to top-left position
+  return {
+    x: newCx - w / 2,
+    y: newCy - h / 2,
+  }
+}
+
+
 // ── SAT / OBB collision ──────────────────────────────────────
 
 interface OBB {
@@ -240,6 +276,27 @@ export function unitStep(unit: MeasureUnit): number {
 }
 
 // ── Overlap resolution ───────────────────────────────────────
+
+/**
+ * Check if any pieces have overlaps (considering margins and gap).
+ */
+export function hasOverlaps(pieces: Piece[], gap: number): boolean {
+  for (let i = 0; i < pieces.length; i++) {
+    for (let j = i + 1; j < pieces.length; j++) {
+      const a = pieces[i]!
+      const b = pieces[j]!
+      
+      const margin = Math.max(gap * 0.5, 0.25)
+      const obbA = toOBB(a.x, a.y, a.w, a.h, a.rotation, a.margin + margin)
+      const obbB = toOBB(b.x, b.y, b.w, b.h, b.rotation, b.margin + margin)
+      
+      if (obbsOverlap(obbA, obbB)) {
+        return true
+      }
+    }
+  }
+  return false
+}
 
 /**
  * Iterative constraint solver: push overlapping pieces apart until none overlap.
@@ -485,7 +542,9 @@ export function crossCluster(
   const locked = pieces.filter((p) => p.locked)
   if (unlocked.length === 0) return pieces
 
-  const sorted = [...unlocked].sort((a, b) => b.h / b.w - a.h / a.w)
+  // Shuffle first for randomization, then sort by aspect ratio with slight randomness
+  const shuffled = [...unlocked].sort(() => Math.random() - 0.5)
+  const sorted = shuffled.sort((a, b) => (b.h / b.w - a.h / a.w) + (Math.random() - 0.5) * 0.3)
   const nVert = Math.ceil(sorted.length / 2)
   const spinePieces = sorted.slice(0, nVert)
   const armPieces = sorted.slice(nVert)
@@ -647,7 +706,8 @@ export function gridCluster(
   const locked = pieces.filter((p) => p.locked)
   if (unlocked.length === 0) return pieces
 
-  const sorted = [...unlocked].sort((a, b) => b.w * b.h - a.w * a.h)
+  // Add randomization to sorting so grid order varies
+  const sorted = [...unlocked].sort((a, b) => (b.w * b.h - a.w * a.h) + (Math.random() - 0.5) * 100)
   const n = sorted.length
   const cols = Math.max(1, Math.ceil(Math.sqrt(n * (wall.width / wall.height))))
   const rows = Math.ceil(n / cols)
@@ -681,7 +741,8 @@ export function columnCluster(
   const locked = pieces.filter((p) => p.locked)
   if (unlocked.length === 0) return pieces
 
-  const sorted = [...unlocked].sort((a, b) => b.w * b.h - a.w * a.h)
+  // Add randomization to sorting so column order varies
+  const sorted = [...unlocked].sort((a, b) => (b.w * b.h - a.w * a.h) + (Math.random() - 0.5) * 100)
   const totalH = sorted.reduce((s, p, i) => s + p.h + 2 * p.margin + (i > 0 ? gap : 0), 0)
   const maxW = sorted.reduce((m, p) => Math.max(m, p.w + 2 * p.margin), 0)
   const startY = Math.max(gap, (wall.height - totalH) / 2)
@@ -751,6 +812,145 @@ export function scatteredCluster(
     placed.push({ x, y, w: p.w, h: p.h, rotation: 0, margin: p.margin })
   }
 
+  return applyClusterMap(unlocked, locked, posMap, wall, gap, snapEnabled, gridSize)
+}
+
+// -- Circular cluster: arrange in a circle around center --------
+
+export function circularCluster(
+  pieces: Piece[],
+  wall: Wall,
+  gap: number,
+  snapEnabled: boolean,
+  gridSize: number,
+): Piece[] {
+  const unlocked = pieces.filter((p) => !p.locked)
+  const locked = pieces.filter((p) => p.locked)
+  
+  const centerX = wall.width / 2
+  const centerY = wall.height / 2
+  
+  // Calculate radius based on wall size and number of pieces
+  const avgSize = unlocked.reduce((sum, p) => sum + Math.max(p.w, p.h), 0) / unlocked.length
+  const radius = Math.min(wall.width, wall.height) * 0.3 + avgSize
+  
+  const posMap = new Map<string, { x: number; y: number; rotation: number }>()
+  
+  unlocked.forEach((piece, i) => {
+    const angle = (i / unlocked.length) * 2 * Math.PI - Math.PI / 2
+    const x = centerX + Math.cos(angle) * radius - piece.w / 2
+    const y = centerY + Math.sin(angle) * radius - piece.h / 2
+    
+    posMap.set(piece.id, { x, y, rotation: 0 })
+  })
+  
+  return applyClusterMap(unlocked, locked, posMap, wall, gap, snapEnabled, gridSize)
+}
+
+// -- Pyramid cluster: stack largest at bottom --------
+
+export function pyramidCluster(
+  pieces: Piece[],
+  wall: Wall,
+  gap: number,
+  snapEnabled: boolean,
+  gridSize: number,
+): Piece[] {
+  const unlocked = pieces.filter((p) => !p.locked)
+  const locked = pieces.filter((p) => p.locked)
+  
+  // Sort by area (largest first)
+  const sorted = [...unlocked].sort((a, b) => b.w * b.h - a.w * a.h)
+  
+  const posMap = new Map<string, { x: number; y: number; rotation: number }>()
+  
+  let currentY = wall.height * 0.1
+  let rowPieces: Piece[] = []
+  const rowsNeeded = Math.ceil(Math.sqrt(sorted.length))
+  const piecesPerRow = Math.ceil(sorted.length / rowsNeeded)
+  
+  sorted.forEach((piece, i) => {
+    rowPieces.push(piece)
+    
+    if (rowPieces.length === piecesPerRow || i === sorted.length - 1) {
+      // Center this row
+      const rowWidth = rowPieces.reduce((sum, p) => sum + p.w + gap, -gap)
+      let currentX = (wall.width - rowWidth) / 2
+      const rowHeight = Math.max(...rowPieces.map((p) => p.h))
+      
+      rowPieces.forEach((p) => {
+        posMap.set(p.id, { x: currentX, y: currentY, rotation: 0 })
+        currentX += p.w + gap
+      })
+      
+      currentY += rowHeight + gap
+      rowPieces = []
+    }
+  })
+  
+  return applyClusterMap(unlocked, locked, posMap, wall, gap, snapEnabled, gridSize)
+}
+
+// -- Spiral cluster: arrange in spiral from center --------
+
+export function spiralCluster(
+  pieces: Piece[],
+  wall: Wall,
+  gap: number,
+  snapEnabled: boolean,
+  gridSize: number,
+): Piece[] {
+  const unlocked = pieces.filter((p) => !p.locked)
+  const locked = pieces.filter((p) => p.locked)
+  
+  const centerX = wall.width / 2
+  const centerY = wall.height / 2
+  
+  const posMap = new Map<string, { x: number; y: number; rotation: number }>()
+  
+  unlocked.forEach((piece, i) => {
+    // Spiral: radius increases with each piece
+    const t = i * 0.5
+    const radius = t * 8 + 20
+    const angle = t * 1.2 - Math.PI / 2
+    
+    const x = centerX + Math.cos(angle) * radius - piece.w / 2
+    const y = centerY + Math.sin(angle) * radius - piece.h / 2
+    
+    posMap.set(piece.id, { x, y, rotation: 0 })
+  })
+  
+  return applyClusterMap(unlocked, locked, posMap, wall, gap, snapEnabled, gridSize)
+}
+
+// -- Centered cluster: all pieces near center with small offsets --------
+
+export function centeredCluster(
+  pieces: Piece[],
+  wall: Wall,
+  gap: number,
+  snapEnabled: boolean,
+  gridSize: number,
+): Piece[] {
+  const unlocked = pieces.filter((p) => !p.locked)
+  const locked = pieces.filter((p) => p.locked)
+  
+  const centerX = wall.width / 2
+  const centerY = wall.height / 2
+  
+  const posMap = new Map<string, { x: number; y: number; rotation: number }>()
+  
+  unlocked.forEach((piece) => {
+    // Small random offset from center
+    const offsetX = (Math.random() - 0.5) * wall.width * 0.2
+    const offsetY = (Math.random() - 0.5) * wall.height * 0.2
+    
+    const x = centerX + offsetX - piece.w / 2
+    const y = centerY + offsetY - piece.h / 2
+    
+    posMap.set(piece.id, { x, y, rotation: 0 })
+  })
+  
   return applyClusterMap(unlocked, locked, posMap, wall, gap, snapEnabled, gridSize)
 }
 

@@ -2,8 +2,8 @@ import { useRef, useState, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faRotateLeft, faRotateRight, faWandMagicSparkles, faShuffle,
-  faObjectGroup, faTrashCan, faFileImport, faFileExport,
-  faCheck, faXmark, faCamera, faChevronDown,
+  faObjectGroup, faFileImport, faFileExport,
+  faCheck, faXmark, faCamera, faChevronDown, faEye,
 } from '@fortawesome/free-solid-svg-icons'
 import { useStore } from '../store/useStore'
 import type { ZoomMode } from '../App'
@@ -77,54 +77,6 @@ function Divider() {
   return <div className="w-px h-5 flex-shrink-0" style={{ background: 'var(--border-subtle)' }} />
 }
 
-function Toggle({
-  checked,
-  onChange,
-  label,
-  title,
-}: {
-  checked: boolean
-  onChange: (checked: boolean) => void
-  label: string
-  title?: string
-}) {
-  return (
-    <button
-      onClick={() => onChange(!checked)}
-      className="flex items-center gap-2.5 h-8 text-xs font-medium transition-all"
-      style={{
-        background: 'transparent',
-        border: 'none',
-        color: 'var(--text-secondary)',
-        padding: 0,
-      }}
-      title={title}
-    >
-      <span>{label}</span>
-      <div
-        className="relative rounded-full transition-all flex items-center"
-        style={{
-          width: 36,
-          height: 20,
-          background: checked ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.1)',
-          border: `1.5px solid ${checked ? 'rgba(59,130,246,0.5)' : 'var(--border-subtle)'}`,
-          padding: '2px',
-        }}
-      >
-        <div
-          className="rounded-full transition-all"
-          style={{
-            width: 14,
-            height: 14,
-            background: checked ? '#3b82f6' : 'var(--text-muted)',
-            transform: checked ? 'translateX(16px)' : 'translateX(0)',
-          }}
-        />
-      </div>
-    </button>
-  )
-}
-
 type PendingAction = 'clear' | 'demo' | null
 
 const CONFIRM_LABELS: Record<NonNullable<PendingAction>, string> = {
@@ -135,13 +87,13 @@ const CONFIRM_LABELS: Record<NonNullable<PendingAction>, string> = {
 export function Toolbar({
   zoomMode,
   setZoomMode,
-  showLegend,
-  setShowLegend,
+  previewMode,
+  setPreviewMode,
 }: {
   zoomMode: ZoomMode
   setZoomMode: (mode: ZoomMode | ((prev: ZoomMode) => ZoomMode)) => void
-  showLegend: boolean
-  setShowLegend: (show: boolean | ((prev: boolean) => boolean)) => void
+  previewMode: boolean
+  setPreviewMode: (mode: boolean) => void
 }) {
   const undoStack = useStore((s) => s.undoStack)
   const redoStack = useStore((s) => s.redoStack)
@@ -265,10 +217,9 @@ export function Toolbar({
           </Btn>
           <Btn
             onClick={() => cluster()}
-            accent="violet"
-            title="Cluster items using a random enabled pattern"
+            title="Re-arrange items using a random enabled pattern"
           >
-            <FontAwesomeIcon icon={faObjectGroup} /> Cluster
+            <FontAwesomeIcon icon={faObjectGroup} /> Re-arrange
           </Btn>
 
           <Divider />
@@ -302,7 +253,7 @@ export function Toolbar({
               }}
               title={isFit ? 'Auto-fit active — click to fix scale' : 'Click to fit wall to screen'}
             >
-              {isFit ? 'Fit' : `${Math.round(displayScale * 10) / 10}px`}
+              {isFit ? 'Fit' : `${Math.round(displayScale * 100)}%`}
             </button>
             <button
               onClick={handleZoomIn}
@@ -321,13 +272,19 @@ export function Toolbar({
             </button>
           </div>
 
-          {/* Ruler toggle */}
-          <Toggle
-            checked={showLegend}
-            onChange={setShowLegend}
-            label="Rulers"
-            title={showLegend ? 'Hide rulers' : 'Show rulers'}
-          />
+          {/* Preview mode button */}
+          <Btn
+            onClick={() => {
+              setPreviewMode(!previewMode)
+              if (!previewMode) {
+                setZoomMode('fit')
+              }
+            }}
+            accent="violet"
+            title={previewMode ? 'Exit preview mode' : 'Preview mode: hide UI elements for a clean view'}
+          >
+            <FontAwesomeIcon icon={faEye} /> {previewMode ? 'Exit Preview' : 'Preview'}
+          </Btn>
         </>
       )}
 

@@ -1,6 +1,7 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { checkOob } from '../lib/utils'
-import type { Piece, Wall, ResizeHandle } from '../types'
+import { toDisplayUnit, unitSuffix } from '../lib/utils'
+import type { Piece, Wall, ResizeHandle, MeasureUnit } from '../types'
 
 const RESIZE_HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 
@@ -10,6 +11,8 @@ interface CanvasPieceProps {
   wall: Wall
   imageUrl: string | undefined
   scale: number
+  unit: MeasureUnit
+  showPieceInfo: 'off' | 'hover' | 'always'
   onPieceMousedown: (e: React.MouseEvent, id: string) => void
   onHandleMousedown: (e: React.MouseEvent, id: string) => void
   onResizeMousedown: (e: React.MouseEvent, id: string, handle: ResizeHandle) => void
@@ -21,10 +24,13 @@ export const CanvasPiece = memo(function CanvasPiece({
   wall,
   imageUrl,
   scale,
+  unit,
+  showPieceInfo,
   onPieceMousedown,
   onHandleMousedown,
   onResizeMousedown,
 }: CanvasPieceProps) {
+  const [isHovered, setIsHovered] = useState(false)
   const oob = checkOob(piece.x, piece.y, piece.w, piece.h, piece.rotation, wall)
 
   const classes = [
@@ -39,6 +45,15 @@ export const CanvasPiece = memo(function CanvasPiece({
 
   const marginPx = piece.margin * scale
   const label = piece.name || `${piece.w}"×${piece.h}"`
+  
+  // Calculate info to display
+  const shouldShowInfo = showPieceInfo === 'always' || (showPieceInfo === 'hover' && isHovered)
+  const suf = unitSuffix(unit)
+  const displayW = toDisplayUnit(piece.w, unit)
+  const displayH = toDisplayUnit(piece.h, unit)
+  const displayX = toDisplayUnit(piece.x, unit)
+  const displayY = toDisplayUnit(piece.y, unit)
+  const infoText = `${piece.name || 'Untitled'}\n${displayW.toFixed(unit === 'in' ? 1 : 0)}${suf} × ${displayH.toFixed(unit === 'in' ? 1 : 0)}${suf}\n@(${displayX.toFixed(0)}, ${displayY.toFixed(0)})${suf}\n${piece.rotation}°`
 
   return (
     <div
@@ -59,6 +74,8 @@ export const CanvasPiece = memo(function CanvasPiece({
         zIndex: selected ? 10 : 1,
       }}
       onMouseDown={(e) => onPieceMousedown(e, piece.id)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Margin indicator */}
       {selected && piece.margin > 0 && (
@@ -111,6 +128,27 @@ export const CanvasPiece = memo(function CanvasPiece({
           }}
         />
       ))}
+      
+      {/* Info tooltip */}
+      {shouldShowInfo && (
+        <div
+          className="absolute pointer-events-none text-xs font-mono leading-relaxed whitespace-pre-line px-2 py-1.5 rounded shadow-lg"
+          style={{
+            left: '50%',
+            top: '50%',
+            transform: `translate(-50%, -50%) rotate(${-piece.rotation}deg)`,
+            background: 'rgba(0, 0, 0, 0.85)',
+            color: '#fff',
+            zIndex: 100,
+            backdropFilter: 'blur(4px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            maxWidth: '200px',
+            textAlign: 'center',
+          }}
+        >
+          {infoText}
+        </div>
+      )}
     </div>
   )
 })
