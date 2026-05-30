@@ -1,12 +1,11 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import toast from 'react-hot-toast'
 import { COLORS, DEFAULT_PIECE_MARGIN, DEFAULT_GAP, DEMO_SPECS } from '../lib/constants'
 import {
   getRandomPos, placeWithoutOverlap, swapShuffle,
   compactCluster, crossCluster, diagonalCluster, brickCluster,
   gridCluster, columnCluster, scatteredCluster,
-  snapRotation, resolveOverlaps, checkClusterFeasibility, hasAnyOverlaps,
+  snapRotation, resolveOverlaps, checkClusterFeasibility,
 } from '../lib/utils'
 import {
   storeImage, getAllImages, deleteImage, clearAllImages, fileToDataUrl,
@@ -84,9 +83,8 @@ interface StoreState {
 
   // ── Import / Export ───────────────────────────────────────
   exportLayout(): Promise<void>
-  exportAsImage(format?: 'png' | 'webp' | 'svg'): Promise<void>
+  exportAsImage(): Promise<void>
   importLayout(file: File): Promise<void>
-  _generateSVG(): Promise<string>
 }
 
 function pickColor(index: number): string {
@@ -121,14 +119,10 @@ function migratePiece(p: Record<string, unknown>): Piece {
 function pickRandomPattern(enabled: ClusterPattern[]): ClusterPattern {
   const pool = enabled.length > 0 ? enabled : ALL_PATTERNS
   // When multiple patterns are available, never pick the same one twice in a row
-  if (pool.length > 1) {
-    const candidates = pool.filter((p) => p !== _lastClusterPattern)
-    const chosen = candidates[Math.floor(Math.random() * candidates.length)]!
-    _lastClusterPattern = chosen
-    return chosen
-  }
-  // With only one pattern, just return it (no filtering needed)
-  return pool[0]!
+  const candidates = pool.length > 1 ? pool.filter((p) => p !== _lastClusterPattern) : pool
+  const chosen = candidates[Math.floor(Math.random() * candidates.length)]!
+  _lastClusterPattern = chosen
+  return chosen
 }
 
 const CLUSTER_FNS: Record<ClusterPattern, typeof compactCluster> = {
@@ -164,8 +158,8 @@ export const useStore = create<StoreState>()(
       // ── Layout ──────────────────────────────────────────
 
       setWall(w, h) {
-        set((s) => ({ wall: { ...s.wall, width: w, height: h } }))
         get().pushHistory('Resize wall')
+        set((s) => ({ wall: { ...s.wall, width: w, height: h } }))
       },
       setBgColor(color) {
         set((s) => ({ wall: { ...s.wall, bgColor: color } }))
@@ -285,41 +279,19 @@ export const useStore = create<StoreState>()(
         // Check feasibility before clustering
         const feasibilityCheck = checkClusterFeasibility(pieces, wall, gap)
         if (!feasibilityCheck.feasible) {
-          toast.error(`Cannot cluster: ${feasibilityCheck.reason}\n\nTry: reducing gap, enabling overlap, or using a larger wall.`)
+          alert(`Cannot cluster: ${feasibilityCheck.reason}\n\nTry: reducing gap, enabling overlap, or using a larger wall.`)
           return
         }
         
-        // Try multiple times to find a valid layout without overlaps
-        const maxAttempts = allowOverlap ? 1 : 10
-        let clustered: Piece[] | null = null
-        
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          const pattern = pickRandomPattern(enabledPatterns)
-          const fn = CLUSTER_FNS[pattern]
-          let candidate = fn(pieces, wall, gap, snapEnabled, gridSize)
-          
-          if (!allowOverlap) {
-            candidate = resolveOverlaps(candidate, wall, gap)
-            
-            // Check if overlaps still exist after resolution
-            if (!hasAnyOverlaps(candidate, gap)) {
-              clustered = candidate
-              break
-            }
-          } else {
-            clustered = candidate
-            break
-          }
-        }
-        
-        // If we couldn't find a valid layout after all attempts
-        if (!clustered) {
-          toast.error(`Cannot cluster without overlaps.\n\nThe items are too large for the wall space with the current gap (${gap}"). Try:\n• Reducing the gap between items\n• Enabling overlap in settings\n• Using a larger wall`)
-          return
-        }
-        
-        // Only push history if clustering succeeded
         get().pushHistory('Cluster')
+        const pattern = pickRandomPattern(enabledPatterns)
+        const fn = CLUSTER_FNS[pattern]
+        let clustered = fn(pieces, wall, gap, snapEnabled, gridSize)
+        
+        if (!allowOverlap) {
+          clustered = resolveOverlaps(clustered, wall, gap)
+        }
+        
         set({ pieces: clustered, selectedId: null })
       },
 

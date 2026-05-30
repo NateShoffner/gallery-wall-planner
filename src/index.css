@@ -249,8 +249,7 @@ input[type="color"] {
   border-radius: 4px;
 }
 
-input[type="checkbox"],
-input[type="radio"] {
+input[type="checkbox"] {
   cursor: pointer;
 }
 

@@ -10,10 +10,10 @@ interface RulerProps {
 }
 
 const SIZE = 26  // ruler thickness in px (increased from 22)
-const LABEL_COLOR = 'rgba(255,255,255,0.75)'  // Increased for better readability
+const LABEL_COLOR = 'rgba(255,255,255,0.55)'  // Increased from 0.32 for better readability
 const TICK_MAJOR = 'rgba(255,255,255,0.5)'    // Increased from 0.35
 const TICK_MINOR = 'rgba(255,255,255,0.2)'    // Increased from 0.14
-const BG = 'rgba(0,0,0,0.35)'                 // Slightly darker for better contrast
+const BG = 'rgba(0,0,0,0.28)'                 // Slightly darker for better contrast
 
 export function Ruler({ orientation, totalInches, scale, unit, style }: RulerProps) {
   const length = totalInches * scale
@@ -71,8 +71,7 @@ export function Ruler({ orientation, totalInches, scale, unit, style }: RulerPro
     const isHalf = Math.abs((value % (majorInterval / 2))) < 0.001 && !isMajor
     const tickLen = isMajor ? 14 : isHalf ? 9 : 4
     const color = isMajor || isHalf ? TICK_MAJOR : TICK_MINOR
-    // Add space between number and unit for better readability
-    const label = isMajor && value > 0 ? `${Math.round(value)} ${unitLabel}` : null
+    const label = isMajor && value > 0 ? `${Math.round(value)}${unitLabel}` : null
 
     if (orientation === 'horizontal') {
       ticks.push(
@@ -84,7 +83,7 @@ export function Ruler({ orientation, totalInches, scale, unit, style }: RulerPro
             strokeWidth={isMajor ? 1 : 0.5}
           />
           {label && (
-            <text x={pos + 3} y={SIZE - tickLen - 3} fontSize={10} fill={LABEL_COLOR} fontFamily="system-ui, -apple-system, sans-serif" fontWeight="600">
+            <text x={pos + 3} y={SIZE - tickLen - 3} fontSize={9} fill={LABEL_COLOR} fontFamily="monospace" fontWeight="500">
               {label}
             </text>
           )}
@@ -100,46 +99,13 @@ export function Ruler({ orientation, totalInches, scale, unit, style }: RulerPro
             strokeWidth={isMajor ? 1 : 0.5}
           />
           {label && (
-            <text x={2} y={pos - 2} fontSize={10} fill={LABEL_COLOR} fontFamily="system-ui, -apple-system, sans-serif" fontWeight="600">
+            <text x={2} y={pos - 2} fontSize={9} fill={LABEL_COLOR} fontFamily="monospace" fontWeight="500">
               {label}
             </text>
           )}
         </g>,
       )
     }
-  }
-
-  // Add max value label at the end
-  const maxLabel = `${Math.round(total)} ${unitLabel}`
-  if (orientation === 'horizontal') {
-    ticks.push(
-      <text 
-        key="max" 
-        x={length - 3} 
-        y={SIZE - 16} 
-        fontSize={10} 
-        fill={LABEL_COLOR} 
-        fontFamily="system-ui, -apple-system, sans-serif" 
-        fontWeight="600"
-        textAnchor="end"
-      >
-        {maxLabel}
-      </text>
-    )
-  } else {
-    ticks.push(
-      <text 
-        key="max" 
-        x={2} 
-        y={length - 3} 
-        fontSize={10} 
-        fill={LABEL_COLOR} 
-        fontFamily="system-ui, -apple-system, sans-serif" 
-        fontWeight="600"
-      >
-        {maxLabel}
-      </text>
-    )
   }
 
   if (orientation === 'horizontal') {

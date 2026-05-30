@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Toaster } from 'react-hot-toast'
 import { useStore } from './store/useStore'
 import { Toolbar } from './components/Toolbar'
 import { Sidebar } from './components/Sidebar'
@@ -37,25 +36,6 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-      <Toaster
-        position="bottom-center"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: 'var(--bg-elevated)',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border-normal)',
-            fontSize: '14px',
-          },
-          error: {
-            duration: 5000,
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: 'white',
-            },
-          },
-        }}
-      />
       <Toolbar 
         zoomMode={zoomMode} 
         setZoomMode={setZoomMode}

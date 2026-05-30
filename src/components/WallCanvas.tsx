@@ -7,8 +7,8 @@ import { snapToGrid, snapRotation, checkOob, checkConflict, applyResize } from '
 import type { Piece, ResizeHandle } from '../types'
 
 const RULER_SIZE = 26  // Updated to match Ruler.tsx
-const PAD_SIDE = RULER_SIZE + 2  // Testing minimal padding
-const PAD_BOTTOM = 14  // Testing minimal padding
+const PAD_SIDE = RULER_SIZE + 8  // Reduced from 12 to 8 for tighter spacing
+const PAD_BOTTOM = 56
 
 interface DragState {
   pieceId: string
@@ -97,7 +97,7 @@ export function WallCanvas({
   // ── Zoom / display scale ────────────────────────────────────
 
   const [fitScale, setFitScale] = useState(SCALE)
-  const [manualScale, _setManualScale] = useState(SCALE)
+  const [manualScale, setManualScale] = useState(SCALE)
 
   const displayScale = zoomMode === 'fit' ? fitScale : manualScale
 
@@ -319,7 +319,6 @@ export function WallCanvas({
           rs.startX, rs.startY, rs.startW, rs.startH,
           rs.rotation,
           localDx, localDy,
-          e.shiftKey, // Maintain aspect ratio when shift is held
         )
 
         rs.currentX = result.x

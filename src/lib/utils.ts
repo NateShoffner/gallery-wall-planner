@@ -118,21 +118,6 @@ export function checkConflict(
   return false
 }
 
-export function hasAnyOverlaps(pieces: Piece[], gap: number = 0): boolean {
-  for (let i = 0; i < pieces.length; i++) {
-    for (let j = i + 1; j < pieces.length; j++) {
-      const a = pieces[i]!
-      const b = pieces[j]!
-      // Use same margin calculation as resolveOverlaps for consistency
-      const margin = gap > 0 ? Math.max(gap * 0.5, 0.25) : 0
-      const obbA = toOBB(a.x, a.y, a.w, a.h, a.rotation, a.margin + margin)
-      const obbB = toOBB(b.x, b.y, b.w, b.h, b.rotation, b.margin + margin)
-      if (obbsOverlap(obbA, obbB)) return true
-    }
-  }
-  return false
-}
-
 // ── Resize math ──────────────────────────────────────────────
 
 export function applyResize(
@@ -144,7 +129,6 @@ export function applyResize(
   rotation: number,
   localDx: number,
   localDy: number,
-  maintainAspectRatio: boolean = false,
 ): { x: number; y: number; w: number; h: number } {
   const R = (rotation * Math.PI) / 180
   const cosR = Math.cos(R)
@@ -160,51 +144,8 @@ export function applyResize(
   if (handle.includes('s')) { dh = localDy; anchorLy = -startH / 2 }
   if (handle.includes('n')) { dh = -localDy; anchorLy = startH / 2 }
 
-  let newW = Math.max(1, startW + dw)
-  let newH = Math.max(1, startH + dh)
-
-  // Maintain aspect ratio if shift is held
-  if (maintainAspectRatio && startW > 0 && startH > 0) {
-    const aspectRatio = startW / startH
-    
-    // Determine which dimension is being changed
-    const isCorner = (handle.includes('e') || handle.includes('w')) && 
-                     (handle.includes('n') || handle.includes('s'))
-    const isHorizontal = handle.includes('e') || handle.includes('w')
-    const isVertical = handle.includes('n') || handle.includes('s')
-    
-    if (isCorner) {
-      // For corner handles, use whichever dimension changed more to determine the scale
-      const wChange = Math.abs(dw)
-      const hChange = Math.abs(dh)
-      
-      if (wChange > hChange) {
-        // Width is being dragged more - use width to determine new height
-        newH = newW / aspectRatio
-        // Recalculate dh for proper anchor positioning
-        dh = newH - startH
-      } else {
-        // Height is being dragged more - use height to determine new width
-        newW = newH * aspectRatio
-        // Recalculate dw for proper anchor positioning
-        dw = newW - startW
-      }
-    } else if (isHorizontal && !isVertical) {
-      // Horizontal edge only - adjust height to maintain ratio
-      newH = newW / aspectRatio
-      // Need to adjust dh and anchor for the vertical adjustment
-      dh = newH - startH
-      // For horizontal-only handles, we need to center the vertical adjustment
-      anchorLy = 0 // Center vertically
-    } else if (isVertical && !isHorizontal) {
-      // Vertical edge only - adjust width to maintain ratio
-      newW = newH * aspectRatio
-      // Need to adjust dw and anchor for the horizontal adjustment
-      dw = newW - startW
-      // For vertical-only handles, we need to center the horizontal adjustment
-      anchorLx = 0 // Center horizontally
-    }
-  }
+  const newW = Math.max(1, startW + dw)
+  const newH = Math.max(1, startH + dh)
 
   const anchorWx = oldCx + cosR * anchorLx - sinR * anchorLy
   const anchorWy = oldCy + sinR * anchorLx + cosR * anchorLy
@@ -544,14 +485,10 @@ export function crossCluster(
   const locked = pieces.filter((p) => p.locked)
   if (unlocked.length === 0) return pieces
 
-  // Shuffle pieces for randomness
-  const shuffled = [...unlocked].sort(() => Math.random() - 0.5)
-  
-  // Randomize the split between spine and arms (40-60%)
-  const spineRatio = 0.4 + Math.random() * 0.2
-  const nVert = Math.max(1, Math.ceil(shuffled.length * spineRatio))
-  const spinePieces = shuffled.slice(0, nVert)
-  const armPieces = shuffled.slice(nVert)
+  const sorted = [...unlocked].sort((a, b) => b.h / b.w - a.h / a.w)
+  const nVert = Math.ceil(sorted.length / 2)
+  const spinePieces = sorted.slice(0, nVert)
+  const armPieces = sorted.slice(nVert)
 
   const posMap = new Map<string, { x: number; y: number }>()
 
@@ -562,11 +499,8 @@ export function crossCluster(
   const armMaxH = armPieces.length > 0
     ? armPieces.reduce((m, p) => Math.max(m, p.h + 2 * p.margin), 0) : 0
 
-  // Add randomness to center position (±15% of wall size)
-  const cxJitter = (Math.random() - 0.5) * wall.width * 0.3
-  const cyJitter = (Math.random() - 0.5) * wall.height * 0.3
-  const cx = wall.width / 2 + cxJitter
-  const cy = wall.height / 2 + cyJitter
+  const cx = wall.width / 2
+  const cy = wall.height / 2
 
   let y = cy - spineTotalH / 2
   for (const p of spinePieces) {
@@ -576,8 +510,7 @@ export function crossCluster(
     y += p.h + 2 * pm + gap
   }
 
-  // Randomize split between left and right arms
-  const leftCount = Math.floor(armPieces.length * (0.4 + Math.random() * 0.2))
+  const leftCount = Math.floor(armPieces.length / 2)
   const leftArm = armPieces.slice(0, leftCount)
   const rightArm = armPieces.slice(leftCount)
   const armY = cy - armMaxH / 2
@@ -756,15 +689,11 @@ export function columnCluster(
 
   const posMap = new Map<string, { x: number; y: number }>()
   let y = startY
-  for (let i = 0; i < sorted.length; i++) {
-    const p = sorted[i]!
+  for (const p of sorted) {
     const pm = p.margin
     const xOff = (maxW - p.w - 2 * pm) / 2
     posMap.set(p.id, { x: colX + pm + xOff, y: y + pm })
-    y += p.h + 2 * pm
-    if (i < sorted.length - 1) {
-      y += gap
-    }
+    y += p.h + 2 * pm + gap
   }
 
   return applyClusterMap(unlocked, locked, posMap, wall, gap, snapEnabled, gridSize)

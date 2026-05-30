@@ -143,7 +143,7 @@ export function WallAreaModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
       style={{ background: 'rgba(0,0,0,0.85)' }}
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel() }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
     >
       <div
         className="flex flex-col gap-0 rounded-xl overflow-hidden"
@@ -154,7 +154,6 @@ export function WallAreaModal({
           maxHeight: '92vh',
           width: 'max-content',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>

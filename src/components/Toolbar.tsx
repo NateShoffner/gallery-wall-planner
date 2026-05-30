@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faRotateLeft, faRotateRight, faWandMagicSparkles, faShuffle,
-  faObjectGroup, faFileImport, faFileExport,
+  faObjectGroup, faTrashCan, faFileImport, faFileExport,
   faCheck, faXmark, faCamera, faChevronDown,
 } from '@fortawesome/free-solid-svg-icons'
 import { useStore } from '../store/useStore'

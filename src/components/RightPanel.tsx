@@ -455,26 +455,7 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
 
   return (
     <div className="px-4 py-3 flex flex-col gap-3 section-block">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <Label>Gap</Label>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="number"
-              value={gapInput}
-              min={0}
-              step={unitStep(unit)}
-              onChange={(e) => setGapInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && applyGap()}
-              onBlur={applyGap}
-              className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
-              style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
-            />
-            <span className="text-xs w-6" style={{ color: 'var(--text-muted)' }}>
-              {suf}
-            </span>
-          </div>
-        </div>
+      <FormRow label="Gap" wide>
         <input
           type="range"
           min={0}
@@ -482,10 +463,24 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
           step={unitStep(unit)}
           value={dispGap}
           onChange={(e) => setGap(fromDisplayUnit(parseFloat(e.target.value), unit))}
-          className="w-full"
+          className="flex-1"
           style={{ accentColor: 'var(--accent-blue)' }}
         />
-      </div>
+        <input
+          type="number"
+          value={gapInput}
+          min={0}
+          step={unitStep(unit)}
+          onChange={(e) => setGapInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && applyGap()}
+          onBlur={applyGap}
+          className="w-16 px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
+          style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
+        />
+        <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
+          {suf}
+        </span>
+      </FormRow>
 
       <FormRow label="Overlap" wide>
         <Toggle checked={allowOverlap} onChange={setAllowOverlap} />
@@ -530,8 +525,6 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
   const removePiece = useStore((s) => s.removePiece)
   const setPieceImage = useStore((s) => s.setPieceImage)
   const clearPieceImage = useStore((s) => s.clearPieceImage)
-  const resizePiece = useStore((s) => s.resizePiece)
-  const pushHistory = useStore((s) => s.pushHistory)
 
   const imgRef = useRef<HTMLInputElement>(null)
   const thumbnail = piece.imageId ? imageCache[piece.imageId] : null
@@ -540,14 +533,8 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
 
   const [nameLocal, setNameLocal] = useState(piece.name)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [widthInput, setWidthInput] = useState(toDisplayUnit(piece.w, unit).toFixed(unit === 'in' ? 0 : 1))
-  const [heightInput, setHeightInput] = useState(toDisplayUnit(piece.h, unit).toFixed(unit === 'in' ? 0 : 1))
 
   useEffect(() => { setNameLocal(piece.name) }, [piece.name])
-  useEffect(() => { 
-    setWidthInput(toDisplayUnit(piece.w, unit).toFixed(unit === 'in' ? 0 : 1))
-    setHeightInput(toDisplayUnit(piece.h, unit).toFixed(unit === 'in' ? 0 : 1))
-  }, [piece.w, piece.h, unit])
   useEffect(() => {
     if (!confirmDelete) return
     const id = setTimeout(() => setConfirmDelete(false), 4000)
@@ -556,32 +543,6 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
 
   function commitName() {
     if (nameLocal !== piece.name) setPieceProps(piece.id, { name: nameLocal })
-  }
-
-  function applyWidth() {
-    const val = parseFloat(widthInput)
-    if (!isNaN(val) && val > 0) {
-      const inches = fromDisplayUnit(val, unit)
-      if (Math.abs(inches - piece.w) > 0.01) {
-        pushHistory('Resize item')
-        resizePiece(piece.id, { w: inches })
-      }
-    } else {
-      setWidthInput(toDisplayUnit(piece.w, unit).toFixed(unit === 'in' ? 0 : 1))
-    }
-  }
-
-  function applyHeight() {
-    const val = parseFloat(heightInput)
-    if (!isNaN(val) && val > 0) {
-      const inches = fromDisplayUnit(val, unit)
-      if (Math.abs(inches - piece.h) > 0.01) {
-        pushHistory('Resize item')
-        resizePiece(piece.id, { h: inches })
-      }
-    } else {
-      setHeightInput(toDisplayUnit(piece.h, unit).toFixed(unit === 'in' ? 0 : 1))
-    }
   }
 
   return (
@@ -618,44 +579,6 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
           style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
           onFocus={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--accent-blue)' }}
         />
-      </div>
-
-      {/* Dimensions */}
-      <div className="px-4 py-3 flex flex-col gap-3 section-block">
-        <FormRow label="Width" wide>
-          <input
-            type="number"
-            value={widthInput}
-            min={1}
-            step={step}
-            onChange={(e) => setWidthInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && applyWidth()}
-            onBlur={applyWidth}
-            disabled={piece.locked}
-            className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums text-right disabled:opacity-50"
-            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
-          />
-          <span className="text-xs w-6" style={{ color: 'var(--text-muted)' }}>
-            {suf}
-          </span>
-        </FormRow>
-        <FormRow label="Height" wide>
-          <input
-            type="number"
-            value={heightInput}
-            min={1}
-            step={step}
-            onChange={(e) => setHeightInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && applyHeight()}
-            onBlur={applyHeight}
-            disabled={piece.locked}
-            className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums text-right disabled:opacity-50"
-            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
-          />
-          <span className="text-xs w-6" style={{ color: 'var(--text-muted)' }}>
-            {suf}
-          </span>
-        </FormRow>
       </div>
 
       {/* Position */}
