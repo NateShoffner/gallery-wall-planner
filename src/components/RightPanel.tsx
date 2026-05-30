@@ -1,0 +1,923 @@
+import { useRef, useState, useEffect } from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faLock, faLockOpen, faTrash, faImage, faRotateLeft, faRotateRight,
+  faGear, faBorderAll, faSun, faMoon, faXmark, faCheck,
+  faRulerCombined,
+} from '@fortawesome/free-solid-svg-icons'
+import { useStore } from '../store/useStore'
+import { toDisplayUnit, fromDisplayUnit, unitSuffix, unitStep } from '../lib/utils'
+import type { Piece, MeasureUnit, ClusterPattern, WorkArea } from '../types'
+import { WallAreaModal } from './WallAreaModal'
+
+// ── SVG Pattern Previews ────────────────────────────────────────
+
+function PatternSvg({ pattern }: { pattern: ClusterPattern }) {
+  const fill = 'currentColor'
+  const opacity = 0.7
+
+  const svgs: Record<ClusterPattern, React.ReactElement> = {
+    shelf: (
+      <svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="6" width="18" height="12" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="25" y="8" width="14" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="42" y="6" width="14" height="12" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="8" y="24" width="14" height="14" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="25" y="24" width="16" height="14" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="44" y="26" width="12" height="12" rx="1.5" fill={fill} opacity={opacity} />
+      </svg>
+    ),
+    cross: (
+      <svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="24" y="4" width="12" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="24" y="17" width="12" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="24" y="30" width="12" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="4" y="19" width="16" height="8" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="40" y="19" width="16" height="8" rx="1.5" fill={fill} opacity={opacity} />
+      </svg>
+    ),
+    diagonal: (
+      <svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="4" width="16" height="12" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="22" y="14" width="16" height="12" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="41" y="24" width="16" height="14" rx="1.5" fill={fill} opacity={opacity} />
+      </svg>
+    ),
+    brick: (
+      <svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="5" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="22" y="5" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="41" y="5" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="12" y="19" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="31" y="19" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="3" y="33" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="22" y="33" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="41" y="33" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+      </svg>
+    ),
+    grid: (
+      <svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="4" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="22" y="4" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="41" y="4" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="3" y="17" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="22" y="17" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="41" y="17" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="3" y="30" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="22" y="30" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="41" y="30" width="16" height="10" rx="1.5" fill={fill} opacity={opacity} />
+      </svg>
+    ),
+    column: (
+      <svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="18" y="3" width="24" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="18" y="16" width="24" height="10" rx="1.5" fill={fill} opacity={opacity} />
+        <rect x="18" y="29" width="24" height="10" rx="1.5" fill={fill} opacity={opacity} />
+      </svg>
+    ),
+    scattered: (
+      <svg viewBox="0 0 60 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="6" width="12" height="10" rx="1.5" fill={fill} opacity={opacity} transform="rotate(-5 9 11)" />
+        <rect x="22" y="3" width="18" height="13" rx="1.5" fill={fill} opacity={opacity} transform="rotate(3 31 9)" />
+        <rect x="44" y="8" width="13" height="10" rx="1.5" fill={fill} opacity={opacity} transform="rotate(-8 50 13)" />
+        <rect x="6" y="26" width="16" height="12" rx="1.5" fill={fill} opacity={opacity} transform="rotate(6 14 32)" />
+        <rect x="30" y="24" width="10" height="14" rx="1.5" fill={fill} opacity={opacity} transform="rotate(-4 35 31)" />
+        <rect x="44" y="27" width="13" height="11" rx="1.5" fill={fill} opacity={opacity} transform="rotate(7 50 32)" />
+      </svg>
+    ),
+  }
+
+  return svgs[pattern]
+}
+
+// ── Primitives ─────────────────────────────────────────────────
+
+function Label({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
+  return (
+    <span
+      className="text-xs font-medium flex-shrink-0"
+      style={{ color: 'var(--text-muted)', minWidth: wide ? 72 : 52 }}
+    >
+      {children}
+    </span>
+  )
+}
+
+function SectionHeader({ children, sub }: { children: React.ReactNode; sub?: string }) {
+  return (
+    <div className="px-4 pt-4 pb-2 section-block">
+      <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+        {children}
+      </div>
+      {sub && (
+        <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>
+          {sub}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FormRow({ label, children, wide }: {
+  label: string
+  children: React.ReactNode
+  wide?: boolean
+}) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <Label wide={wide}>{label}</Label>
+      <div className="flex items-center gap-2 flex-1 min-w-0">{children}</div>
+    </div>
+  )
+}
+
+function NumInput({
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+  unit,
+  minWidth,
+}: {
+  value: number
+  onChange: (v: number) => void
+  min?: number
+  max?: number
+  step?: number
+  unit?: string
+  minWidth?: number
+}) {
+  const [local, setLocal] = useState(String(value))
+  useEffect(() => { setLocal(String(Math.round(value * 100) / 100)) }, [value])
+
+  function commit() {
+    const v = parseFloat(local)
+    if (!isNaN(v)) onChange(v)
+    else setLocal(String(value))
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 flex-1">
+      <input
+        type="number"
+        value={local}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit()
+          if (e.key === 'Escape') setLocal(String(value))
+        }}
+        className="px-2.5 py-1.5 rounded text-sm tabular-nums"
+        style={{
+          background: 'var(--bg-input)',
+          border: '1px solid var(--border-subtle)',
+          color: 'var(--text-primary)',
+          outline: 'none',
+          minWidth: minWidth ?? 60,
+          flex: 1,
+        }}
+        onFocus={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--accent-blue)' }}
+        onBlurCapture={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-subtle)' }}
+      />
+      {unit && (
+        <span className="text-xs flex-shrink-0 w-6 text-right" style={{ color: 'var(--text-muted)' }}>
+          {unit}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="relative inline-flex flex-shrink-0 w-10 h-6 rounded-full transition-colors"
+      style={{ background: checked ? 'var(--accent-blue)' : 'var(--bg-input)', border: '1px solid var(--border-normal)' }}
+    >
+      <span
+        className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
+        style={{ transform: checked ? 'translateX(16px)' : 'translateX(0)' }}
+      />
+    </button>
+  )
+}
+
+function PanelBtn({
+  children,
+  onClick,
+  title,
+  variant = 'default',
+  disabled,
+  small,
+}: {
+  children: React.ReactNode
+  onClick?: () => void
+  title?: string
+  variant?: 'default' | 'danger' | 'active' | 'warning'
+  disabled?: boolean
+  small?: boolean
+}) {
+  const styles: Record<string, { bg: string; color: string }> = {
+    default: { bg: 'var(--bg-elevated)', color: 'var(--text-secondary)' },
+    danger:  { bg: 'transparent', color: 'var(--text-muted)' },
+    active:  { bg: 'var(--accent-blue)', color: 'white' },
+    warning: { bg: 'rgba(251,191,36,0.12)', color: '#fde68a' },
+  }
+  const s = styles[variant] ?? styles.default
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      disabled={disabled}
+      className={`flex items-center justify-center gap-1.5 px-3 rounded text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed ${small ? 'py-1' : 'py-2'}`}
+      style={{ background: s.bg, color: s.color, border: '1px solid var(--border-subtle)', flex: 1 }}
+      onMouseEnter={(e) => {
+        if (!disabled) {
+          if (variant === 'danger') { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#f87171' }
+          else e.currentTarget.style.background = 'var(--bg-hover)'
+        }
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = s.bg
+        e.currentTarget.style.color = s.color
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+const inputStyle = {
+  background: 'var(--bg-input)',
+  border: '1px solid var(--border-subtle)',
+  color: 'var(--text-primary)',
+  outline: 'none',
+}
+
+// ── Wall settings ──────────────────────────────────────────────
+
+function WallSettings({ unit }: { unit: MeasureUnit }) {
+  const wall = useStore((s) => s.wall)
+  const setWall = useStore((s) => s.setWall)
+  const setBgColor = useStore((s) => s.setBgColor)
+  const setWallBgImage = useStore((s) => s.setWallBgImage)
+  const clearWallBgImage = useStore((s) => s.clearWallBgImage)
+  const setWallWorkArea = useStore((s) => s.setWallWorkArea)
+  const imageCache = useStore((s) => s.imageCache)
+  const imgRef = useRef<HTMLInputElement>(null)
+
+  const [areaModalOpen, setAreaModalOpen] = useState(false)
+
+  const suf = unitSuffix(unit)
+  const step = unitStep(unit)
+
+  const [w, setW] = useState(String(toDisplayUnit(wall.width, unit)))
+  const [h, setH] = useState(String(toDisplayUnit(wall.height, unit)))
+
+  useEffect(() => { setW(String(toDisplayUnit(wall.width, unit))) }, [wall.width, unit])
+  useEffect(() => { setH(String(toDisplayUnit(wall.height, unit))) }, [wall.height, unit])
+
+  function apply() {
+    const wv = fromDisplayUnit(parseFloat(w), unit)
+    const hv = fromDisplayUnit(parseFloat(h), unit)
+    if (wv > 0 && hv > 0) setWall(Math.round(wv), Math.round(hv))
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (f) {
+      void setWallBgImage(f).then(() => {
+        setAreaModalOpen(true)
+      })
+    }
+    e.target.value = ''
+  }
+
+  function handleAreaConfirm(area: WorkArea, wallW: number, wallH: number) {
+    setWallWorkArea(area)
+    setWall(wallW, wallH)
+    setAreaModalOpen(false)
+  }
+
+  const wallImageUrl = wall.imageId ? imageCache[wall.imageId] : undefined
+
+  return (
+    <>
+      {areaModalOpen && wallImageUrl && (
+        <WallAreaModal
+          imageUrl={wallImageUrl}
+          initialArea={wall.workArea}
+          onConfirm={handleAreaConfirm}
+          onCancel={() => setAreaModalOpen(false)}
+        />
+      )}
+
+      <div className="px-4 py-3 flex flex-col gap-3 section-block">
+        {/* Size */}
+        <FormRow label="Size" wide>
+          <input
+            type="number"
+            value={w}
+            min={unit === 'cm' ? 30 : unit === 'ft' ? 1 : 12}
+            step={step}
+            onChange={(e) => setW(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && apply()}
+            onBlur={apply}
+            className="w-16 px-2.5 py-1.5 rounded text-sm tabular-nums"
+            style={inputStyle}
+          />
+          <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0 }}>×</span>
+          <input
+            type="number"
+            value={h}
+            min={unit === 'cm' ? 30 : unit === 'ft' ? 1 : 12}
+            step={step}
+            onChange={(e) => setH(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && apply()}
+            onBlur={apply}
+            className="w-16 px-2.5 py-1.5 rounded text-sm tabular-nums"
+            style={inputStyle}
+          />
+          <span style={{ color: 'var(--text-muted)', fontSize: 11, flexShrink: 0 }}>{suf}</span>
+        </FormRow>
+
+        {/* Color */}
+        <FormRow label="Color" wide>
+          <input
+            type="color"
+            value={wall.bgColor}
+            onChange={(e) => setBgColor(e.target.value)}
+            className="w-9 h-7 rounded cursor-pointer flex-shrink-0"
+            style={{ padding: '2px', border: '1px solid var(--border-subtle)', background: 'var(--bg-input)' }}
+          />
+          <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
+            {wall.bgColor}
+          </span>
+        </FormRow>
+
+        {/* Photo */}
+        <FormRow label="Photo" wide>
+          <button
+            onClick={() => imgRef.current?.click()}
+            className="flex-1 px-2.5 py-1.5 rounded text-sm transition-colors truncate flex items-center gap-1.5"
+            style={{
+              background: wall.imageId ? 'rgba(59,130,246,0.15)' : 'var(--bg-input)',
+              border: `1px solid ${wall.imageId ? 'rgba(59,130,246,0.4)' : 'var(--border-subtle)'}`,
+              color: wall.imageId ? '#93c5fd' : 'var(--text-muted)',
+            }}
+          >
+            <FontAwesomeIcon icon={faImage} className="text-xs flex-shrink-0" />
+            {wall.imageId ? 'Attached' : 'Add photo'}
+          </button>
+          {wall.imageId && (
+            <>
+              <button
+                onClick={() => setAreaModalOpen(true)}
+                className="w-8 h-7 rounded flex items-center justify-center text-xs transition-colors flex-shrink-0"
+                style={{ color: wall.workArea ? '#93c5fd' : 'var(--text-muted)', border: `1px solid ${wall.workArea ? 'rgba(59,130,246,0.4)' : 'var(--border-subtle)'}`, background: wall.workArea ? 'rgba(59,130,246,0.12)' : 'var(--bg-input)' }}
+                title="Set usable wall area"
+              >
+                <FontAwesomeIcon icon={faRulerCombined} />
+              </button>
+              <button
+                onClick={() => void clearWallBgImage()}
+                className="w-8 h-7 rounded flex items-center justify-center text-xs transition-colors flex-shrink-0"
+                style={{ color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+                title="Remove photo"
+              >
+                <FontAwesomeIcon icon={faXmark} />
+              </button>
+            </>
+          )}
+          <input
+            ref={imgRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+        </FormRow>
+
+        {wall.workArea && (
+          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded" style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }}>
+            <FontAwesomeIcon icon={faRulerCombined} style={{ fontSize: 10, color: '#93c5fd', flexShrink: 0 }} />
+            <span className="text-xs" style={{ color: '#93c5fd' }}>
+              Usable area: {Math.round(wall.workArea.w * 100)}% × {Math.round(wall.workArea.h * 100)}% of photo
+            </span>
+            <button
+              onClick={() => setWallWorkArea(null)}
+              className="ml-auto w-5 h-5 flex items-center justify-center text-xs rounded"
+              style={{ color: '#93c5fd', opacity: 0.7 }}
+              title="Clear work area (use full image)"
+            >
+              <FontAwesomeIcon icon={faXmark} />
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+// ── Layout settings ────────────────────────────────────────────
+
+function LayoutSettings({ unit }: { unit: MeasureUnit }) {
+  const gap = useStore((s) => s.gap)
+  const snapEnabled = useStore((s) => s.snapEnabled)
+  const gridSize = useStore((s) => s.gridSize)
+  const allowOverlap = useStore((s) => s.allowOverlap)
+  const setGap = useStore((s) => s.setGap)
+  const setSnap = useStore((s) => s.setSnap)
+  const setGridSize = useStore((s) => s.setGridSize)
+  const setAllowOverlap = useStore((s) => s.setAllowOverlap)
+
+  const dispGap = toDisplayUnit(gap, unit)
+  const suf = unitSuffix(unit)
+
+  return (
+    <div className="px-4 py-3 flex flex-col gap-3 section-block">
+      <FormRow label="Gap" wide>
+        <input
+          type="range"
+          min={0}
+          max={unit === 'cm' ? 12.7 : unit === 'ft' ? 0.42 : 5}
+          step={unitStep(unit)}
+          value={dispGap}
+          onChange={(e) => setGap(fromDisplayUnit(parseFloat(e.target.value), unit))}
+          className="flex-1"
+          style={{ accentColor: 'var(--accent-blue)' }}
+        />
+        <span className="text-xs tabular-nums w-12 text-right flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
+          {dispGap.toFixed(unit === 'in' ? 2 : 1)}{suf}
+        </span>
+      </FormRow>
+
+      <FormRow label="Overlap" wide>
+        <Toggle checked={allowOverlap} onChange={setAllowOverlap} />
+        <span className="text-xs" style={{ color: allowOverlap ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+          {allowOverlap ? 'Enabled' : 'Disabled'}
+        </span>
+      </FormRow>
+
+      <FormRow label="Snap" wide>
+        <Toggle checked={snapEnabled} onChange={setSnap} />
+        {snapEnabled && (
+          <>
+            <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>Grid</span>
+            <input
+              type="number"
+              value={gridSize}
+              min={4}
+              max={96}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10)
+                if (v >= 4) setGridSize(v)
+              }}
+              className="w-14 px-2.5 py-1.5 rounded text-sm tabular-nums"
+              style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
+            />
+            <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>px</span>
+          </>
+        )}
+      </FormRow>
+    </div>
+  )
+}
+
+// ── Piece properties ───────────────────────────────────────────
+
+function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
+  const imageCache = useStore((s) => s.imageCache)
+  const setPieceProps = useStore((s) => s.setPieceProps)
+  const setPieceMargin = useStore((s) => s.setPieceMargin)
+  const toggleLock = useStore((s) => s.toggleLock)
+  const rotatePiece = useStore((s) => s.rotatePiece)
+  const removePiece = useStore((s) => s.removePiece)
+  const setPieceImage = useStore((s) => s.setPieceImage)
+  const clearPieceImage = useStore((s) => s.clearPieceImage)
+
+  const imgRef = useRef<HTMLInputElement>(null)
+  const thumbnail = piece.imageId ? imageCache[piece.imageId] : null
+  const suf = unitSuffix(unit)
+  const step = unitStep(unit)
+
+  const [nameLocal, setNameLocal] = useState(piece.name)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  useEffect(() => { setNameLocal(piece.name) }, [piece.name])
+  useEffect(() => {
+    if (!confirmDelete) return
+    const id = setTimeout(() => setConfirmDelete(false), 4000)
+    return () => clearTimeout(id)
+  }, [confirmDelete])
+
+  function commitName() {
+    if (nameLocal !== piece.name) setPieceProps(piece.id, { name: nameLocal })
+  }
+
+  return (
+    <div className="flex flex-col">
+      {/* Identity */}
+      <div className="px-4 py-3 flex flex-col gap-2.5 section-block">
+        <div className="flex items-center gap-3">
+          {thumbnail ? (
+            <img src={thumbnail} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" style={{ border: '1px solid var(--border-subtle)' }} />
+          ) : (
+            <div className="w-10 h-10 rounded flex-shrink-0" style={{ background: piece.color, border: '1px solid var(--border-subtle)' }} />
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+              {toDisplayUnit(piece.w, unit).toFixed(unit === 'in' ? 0 : 1)} × {toDisplayUnit(piece.h, unit).toFixed(unit === 'in' ? 0 : 1)} {suf}
+            </div>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {piece.locked ? 'Locked · ' : ''}{Math.round(((piece.rotation % 360) + 360) % 360)}°
+            </div>
+          </div>
+        </div>
+
+        <input
+          type="text"
+          value={nameLocal}
+          placeholder="Canvas name…"
+          onChange={(e) => setNameLocal(e.target.value)}
+          onBlur={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-subtle)'; commitName() }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { commitName(); (e.target as HTMLInputElement).blur() }
+            if (e.key === 'Escape') { setNameLocal(piece.name); (e.target as HTMLInputElement).blur() }
+          }}
+          className="w-full px-2.5 py-1.5 rounded text-sm"
+          style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
+          onFocus={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--accent-blue)' }}
+        />
+      </div>
+
+      {/* Position */}
+      <div className="px-4 py-3 flex flex-col gap-3 section-block">
+        <FormRow label="X" wide>
+          <NumInput
+            value={toDisplayUnit(piece.x, unit)}
+            step={step}
+            unit={suf}
+            onChange={(v) => setPieceProps(piece.id, { x: fromDisplayUnit(v, unit) })}
+          />
+        </FormRow>
+        <FormRow label="Y" wide>
+          <NumInput
+            value={toDisplayUnit(piece.y, unit)}
+            step={step}
+            unit={suf}
+            onChange={(v) => setPieceProps(piece.id, { y: fromDisplayUnit(v, unit) })}
+          />
+        </FormRow>
+      </div>
+
+      {/* Rotation */}
+      <div className="px-4 py-3 flex flex-col gap-3 section-block">
+        <FormRow label="Rotation" wide>
+          {/* Give the input a real min-width so it doesn't get squeezed */}
+          <div style={{ flex: 1, minWidth: 80, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input
+              type="number"
+              value={Math.round(((piece.rotation % 360) + 360) % 360)}
+              min={0}
+              max={359}
+              step={1}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value)
+                if (!isNaN(v)) setPieceProps(piece.id, { rotation: v })
+              }}
+              className="px-2.5 py-1.5 rounded text-sm tabular-nums"
+              style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none', minWidth: 72, flex: 1 }}
+            />
+            <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>°</span>
+          </div>
+          <button
+            onClick={() => rotatePiece(piece.id, -90)}
+            disabled={piece.locked}
+            title="Rotate 90° CCW"
+            className="flex items-center justify-center px-3 py-1.5 rounded text-sm transition-all disabled:opacity-30"
+            style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', flexShrink: 0 }}
+          >
+            <FontAwesomeIcon icon={faRotateLeft} />
+          </button>
+          <button
+            onClick={() => rotatePiece(piece.id, 90)}
+            disabled={piece.locked}
+            title="Rotate 90° CW"
+            className="flex items-center justify-center px-3 py-1.5 rounded text-sm transition-all disabled:opacity-30"
+            style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', flexShrink: 0 }}
+          >
+            <FontAwesomeIcon icon={faRotateRight} />
+          </button>
+        </FormRow>
+      </div>
+
+      {/* Margin */}
+      <div className="px-4 py-3 flex flex-col gap-2.5 section-block">
+        <FormRow label="Margin" wide>
+          <input
+            type="range"
+            min={0}
+            max={unit === 'cm' ? 10.16 : unit === 'ft' ? 0.333 : 4}
+            step={step}
+            value={toDisplayUnit(piece.margin, unit)}
+            onChange={(e) => setPieceMargin(piece.id, fromDisplayUnit(parseFloat(e.target.value), unit))}
+            className="flex-1"
+            style={{ accentColor: 'var(--accent-orange)' }}
+          />
+          <span className="text-xs tabular-nums w-12 text-right flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
+            {toDisplayUnit(piece.margin, unit).toFixed(unit === 'in' ? 2 : 1)}{suf}
+          </span>
+        </FormRow>
+      </div>
+
+      {/* Photo */}
+      <div className="px-4 py-3 flex flex-col gap-2.5 section-block">
+        <FormRow label="Photo" wide>
+          <button
+            onClick={() => imgRef.current?.click()}
+            className="flex-1 px-2.5 py-1.5 rounded text-sm transition-colors truncate flex items-center gap-1.5"
+            style={{
+              background: thumbnail ? 'rgba(59,130,246,0.15)' : 'var(--bg-input)',
+              border: `1px solid ${thumbnail ? 'rgba(59,130,246,0.4)' : 'var(--border-subtle)'}`,
+              color: thumbnail ? '#93c5fd' : 'var(--text-muted)',
+            }}
+          >
+            <FontAwesomeIcon icon={faImage} className="text-xs" />
+            {thumbnail ? 'Attached' : 'Add photo'}
+          </button>
+          {thumbnail && (
+            <button
+              onClick={() => void clearPieceImage(piece.id)}
+              className="w-8 h-7 rounded flex items-center justify-center text-xs"
+              style={{ color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+            >
+              <FontAwesomeIcon icon={faXmark} />
+            </button>
+          )}
+          <input
+            ref={imgRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) void setPieceImage(piece.id, f)
+              e.target.value = ''
+            }}
+          />
+        </FormRow>
+      </div>
+
+      {/* Actions */}
+      <div className="px-4 py-3 flex flex-col gap-2">
+        <div className="flex gap-2">
+          <PanelBtn onClick={() => toggleLock(piece.id)} title={piece.locked ? 'Unlock' : 'Lock'}>
+            <FontAwesomeIcon icon={piece.locked ? faLockOpen : faLock} />
+            {piece.locked ? 'Unlock' : 'Lock'}
+          </PanelBtn>
+        </div>
+
+        {confirmDelete ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs flex-1" style={{ color: 'var(--text-muted)' }}>Remove this canvas?</span>
+            <PanelBtn variant="warning" onClick={() => { setConfirmDelete(false); removePiece(piece.id) }}>
+              <FontAwesomeIcon icon={faCheck} /> Yes
+            </PanelBtn>
+            <PanelBtn onClick={() => setConfirmDelete(false)}>
+              <FontAwesomeIcon icon={faXmark} /> No
+            </PanelBtn>
+          </div>
+        ) : (
+          <PanelBtn variant="danger" onClick={() => setConfirmDelete(true)}>
+            <FontAwesomeIcon icon={faTrash} /> Remove
+          </PanelBtn>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Settings tab ───────────────────────────────────────────────
+
+const PATTERN_LABELS: Record<ClusterPattern, { name: string; desc: string }> = {
+  shelf: { name: 'Shelf', desc: 'Compact rows' },
+  cross: { name: 'Cross', desc: 'Plus shape' },
+  diagonal: { name: 'Diagonal', desc: 'Staircase' },
+  brick: { name: 'Brick', desc: 'Offset rows' },
+  grid: { name: 'Grid', desc: 'Even columns' },
+  column: { name: 'Column', desc: 'Single stack' },
+  scattered: { name: 'Scattered', desc: 'Organic spread' },
+}
+
+const ALL_PATTERNS: ClusterPattern[] = ['shelf', 'cross', 'diagonal', 'brick', 'grid', 'column', 'scattered']
+
+function SettingsTab() {
+  const unit = useStore((s) => s.unit)
+  const setUnit = useStore((s) => s.setUnit)
+  const theme = useStore((s) => s.theme)
+  const setTheme = useStore((s) => s.setTheme)
+  const enabledPatterns = useStore((s) => s.enabledPatterns)
+  const setEnabledPatterns = useStore((s) => s.setEnabledPatterns)
+
+  const units: Array<{ value: MeasureUnit; label: string; short: string }> = [
+    { value: 'in', label: 'Inches', short: 'in' },
+    { value: 'cm', label: 'Centimeters', short: 'cm' },
+    { value: 'ft', label: 'Feet', short: 'ft' },
+  ]
+
+  function togglePattern(p: ClusterPattern) {
+    if (enabledPatterns.includes(p)) {
+      // Don't remove the last one
+      if (enabledPatterns.length === 1) return
+      setEnabledPatterns(enabledPatterns.filter((x) => x !== p))
+    } else {
+      setEnabledPatterns([...enabledPatterns, p])
+    }
+  }
+
+  return (
+    <div className="flex flex-col">
+      <SectionHeader sub="Display unit for measurements">Units</SectionHeader>
+      <div className="px-4 py-3 flex gap-2 section-block">
+        {units.map((u) => (
+          <button
+            key={u.value}
+            onClick={() => setUnit(u.value)}
+            title={u.label}
+            className="flex-1 py-2 rounded text-xs font-semibold transition-all"
+            style={{
+              background: unit === u.value ? 'var(--accent-blue)' : 'var(--bg-elevated)',
+              border: `1px solid ${unit === u.value ? 'var(--accent-blue)' : 'var(--border-subtle)'}`,
+              color: unit === u.value ? 'white' : 'var(--text-muted)',
+            }}
+          >
+            {u.short}
+          </button>
+        ))}
+      </div>
+
+      <SectionHeader sub="Interface color scheme">Appearance</SectionHeader>
+      <div className="px-4 py-3 section-block">
+        <div className="flex gap-2">
+          {(['dark', 'light'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTheme(t)}
+              className="flex-1 py-2 rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
+              style={{
+                background: theme === t ? 'var(--accent-blue)' : 'var(--bg-elevated)',
+                border: `1px solid ${theme === t ? 'var(--accent-blue)' : 'var(--border-subtle)'}`,
+                color: theme === t ? 'white' : 'var(--text-muted)',
+              }}
+            >
+              <FontAwesomeIcon icon={t === 'dark' ? faMoon : faSun} />
+              {t === 'dark' ? 'Dark' : 'Light'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <SectionHeader sub="Cluster picks randomly from enabled patterns">Cluster Patterns</SectionHeader>
+      <div className="px-4 py-3 flex flex-col gap-2">
+        <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
+          Toggle patterns on/off. Cluster will pick a random enabled one each time.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {ALL_PATTERNS.map((p) => {
+            const active = enabledPatterns.includes(p)
+            return (
+              <button
+                key={p}
+                onClick={() => togglePattern(p)}
+                className="flex flex-col gap-1.5 p-2.5 rounded-lg transition-all text-left"
+                style={{
+                  background: active ? 'rgba(59,130,246,0.12)' : 'var(--bg-elevated)',
+                  border: `1.5px solid ${active ? 'rgba(59,130,246,0.45)' : 'var(--border-subtle)'}`,
+                  color: active ? 'var(--accent-blue)' : 'var(--text-muted)',
+                }}
+              >
+                <div
+                  className="w-full rounded overflow-hidden"
+                  style={{
+                    height: 48,
+                    background: active ? 'rgba(59,130,246,0.08)' : 'rgba(255,255,255,0.03)',
+                  }}
+                >
+                  <PatternSvg pattern={p} />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold">{PATTERN_LABELS[p].name}</div>
+                  <div className="text-[10px] mt-0.5" style={{ opacity: 0.65 }}>{PATTERN_LABELS[p].desc}</div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        <div className="flex gap-2 mt-1">
+          <button
+            onClick={() => setEnabledPatterns([...ALL_PATTERNS])}
+            className="flex-1 py-1.5 rounded text-xs transition-colors"
+            style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+          >
+            Select all
+          </button>
+          <button
+            onClick={() => {
+              const rand = ALL_PATTERNS[Math.floor(Math.random() * ALL_PATTERNS.length)]!
+              setEnabledPatterns([rand])
+            }}
+            className="flex-1 py-1.5 rounded text-xs transition-colors"
+            style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+          >
+            Pick one randomly
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Tab navigation ─────────────────────────────────────────────
+
+type PanelTab = 'properties' | 'settings'
+
+// ── Root export ────────────────────────────────────────────────
+
+export function RightPanel() {
+  const unit = useStore((s) => s.unit)
+  const selectedId = useStore((s) => s.selectedId)
+  const selectedPiece = useStore((s) => s.pieces.find((p) => p.id === s.selectedId))
+  const [tab, setTab] = useState<PanelTab>('properties')
+
+  return (
+    <aside
+      className="flex-shrink-0 flex flex-col"
+      style={{
+        width: 320,
+        background: 'var(--bg-panel)',
+        borderLeft: '1px solid var(--border-subtle)',
+      }}
+    >
+      {/* Tab bar */}
+      <div
+        className="flex flex-shrink-0"
+        style={{ borderBottom: '1px solid var(--border-subtle)' }}
+      >
+        {(['properties', 'settings'] as PanelTab[]).map((t) => {
+          const icons = { properties: faBorderAll, settings: faGear } as const
+          const labels = { properties: 'Layout', settings: 'Settings' }
+          return (
+            <button
+              key={t}
+              className={`panel-tab${tab === t ? ' active' : ''}`}
+              style={{ paddingTop: 12, paddingBottom: 12, fontSize: 12 }}
+              onClick={() => setTab(t)}
+            >
+              <FontAwesomeIcon icon={icons[t]} className="mr-1.5" />
+              {labels[t]}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Tab content */}
+      <div className="flex-1 overflow-y-auto">
+        {tab === 'properties' && (
+          <>
+            <SectionHeader sub="Dimensions & background">Wall</SectionHeader>
+            <WallSettings unit={unit} />
+
+            <SectionHeader sub="Spacing, snap & behavior">Layout</SectionHeader>
+            <LayoutSettings unit={unit} />
+
+            {selectedPiece ? (
+              <>
+                <SectionHeader sub={selectedPiece.name || `${selectedPiece.w} × ${selectedPiece.h} in`}>
+                  Selected Canvas
+                </SectionHeader>
+                <PieceProperties key={selectedId} piece={selectedPiece} unit={unit} />
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Click a canvas on the wall to edit its properties
+                </p>
+              </div>
+            )}
+
+          </>
+        )}
+
+        {tab === 'settings' && <SettingsTab />}
+      </div>
+    </aside>
+  )
+}
