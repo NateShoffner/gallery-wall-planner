@@ -87,6 +87,26 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* ── Cursor styles ─────────────────────────────────────────── */
+
+button, 
+input[type="button"],
+input[type="submit"],
+input[type="checkbox"],
+input[type="radio"],
+select,
+[role="button"],
+.cursor-pointer {
+  cursor: pointer;
+}
+
+input[type="number"],
+input[type="text"],
+input[type="search"],
+textarea {
+  cursor: text;
+}
+
 body {
   margin: 0;
   overflow: hidden;

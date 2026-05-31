@@ -16,6 +16,7 @@ import { WallAreaModal } from '@/components/WallAreaModal'
 import { ErrorLogSection } from '@/components/ErrorLogSection'
 import { HistorySection } from '@/components/HistorySection'
 import { ImageProcessModal } from '@/components/ImageProcessModal'
+import { PrivacyModal } from '@/components/PrivacyModal'
 
 // ── SVG Pattern Previews ────────────────────────────────────────
 
@@ -376,7 +377,7 @@ function WallSettings({ unit }: { unit: MeasureUnit }) {
             onChange={(e) => setW(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && apply()}
             onBlur={apply}
-            className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
+            className="w-24 px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
             style={inputStyle}
           />
           <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0 }}>×</span>
@@ -388,7 +389,7 @@ function WallSettings({ unit }: { unit: MeasureUnit }) {
             onChange={(e) => setH(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && apply()}
             onBlur={apply}
-            className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
+            className="w-24 px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
             style={inputStyle}
           />
           <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0 }}>{suf}</span>
@@ -480,6 +481,7 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
   const showGrid = useStore((s) => s.showGrid)
   const showRulers = useStore((s) => s.showRulers)
   const showPieceInfo = useStore((s) => s.showPieceInfo)
+  const showAlignmentGuides = useStore((s) => s.showAlignmentGuides)
   const gridSize = useStore((s) => s.gridSize)
   const allowOverlap = useStore((s) => s.allowOverlap)
   const snapToNearby = useStore((s) => s.snapToNearby)
@@ -488,6 +490,7 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
   const setShowGrid = useStore((s) => s.setShowGrid)
   const setShowRulers = useStore((s) => s.setShowRulers)
   const setShowPieceInfo = useStore((s) => s.setShowPieceInfo)
+  const setShowAlignmentGuides = useStore((s) => s.setShowAlignmentGuides)
   const setGridSize = useStore((s) => s.setGridSize)
   const setAllowOverlap = useStore((s) => s.setAllowOverlap)
   const setSnapToNearby = useStore((s) => s.setSnapToNearby)
@@ -518,7 +521,7 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
           onChange={(e) => setGapInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && applyGap()}
           onBlur={applyGap}
-          className="w-16 px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
+          className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
           style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
         />
         <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
@@ -534,27 +537,27 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
         <Toggle checked={snapToNearby} onChange={setSnapToNearby} />
       </FormRow>
 
-      <FormRow label="Snap" wide>
+      <FormRow label="Snap to grid" wide>
         <Toggle checked={snapEnabled} onChange={setSnap} />
-        {snapEnabled && (
-          <>
-            <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>Grid</span>
-            <input
-              type="number"
-              value={gridSize}
-              min={4}
-              max={96}
-              onChange={(e) => {
-                const v = parseInt(e.target.value, 10)
-                if (v >= 4) setGridSize(v)
-              }}
-              className="w-14 px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
-              style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
-            />
-            <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>px</span>
-          </>
-        )}
       </FormRow>
+
+      {snapEnabled && (
+        <FormRow label="Grid size" wide>
+          <input
+            type="number"
+            value={gridSize}
+            min={4}
+            max={96}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10)
+              if (v >= 4) setGridSize(v)
+            }}
+            className="w-14 px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
+            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
+          />
+          <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>px</span>
+        </FormRow>
+      )}
 
       <FormRow label="Grid" wide>
         <Toggle checked={showGrid} onChange={setShowGrid} />
@@ -564,7 +567,11 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
         <Toggle checked={showRulers} onChange={setShowRulers} />
       </FormRow>
 
-      <FormRow label="Piece info" wide>
+      <FormRow label="Alignment guides" wide>
+        <Toggle checked={showAlignmentGuides} onChange={setShowAlignmentGuides} />
+      </FormRow>
+
+      <FormRow label="Labels" wide>
         <select
           value={showPieceInfo}
           onChange={(e) => setShowPieceInfo(e.target.value as 'off' | 'hover' | 'always')}
@@ -894,8 +901,10 @@ type PanelTab = 'properties' | 'settings'
 export function RightPanel() {
   const unit = useStore((s) => s.unit)
   const [tab, setTab] = useState<PanelTab>('properties')
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false)
 
   return (
+    <>
     <aside
       className="flex-shrink-0 flex flex-col h-full"
       style={{
@@ -958,7 +967,7 @@ export function RightPanel() {
         }}
       >
         <div className="mb-1">
-          © 2024-2026{' '}
+          © {new Date().getFullYear()}{' '}
           <a
             href="https://nateshoffner.com"
             target="_blank"
@@ -971,16 +980,21 @@ export function RightPanel() {
           </a>
         </div>
         <div>
-          <a
-            href="https://nateshoffner.com/privacy"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}
+          <button
+            onClick={() => setShowPrivacyModal(true)}
+            style={{ 
+              color: 'var(--text-secondary)', 
+              textDecoration: 'none',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              font: 'inherit',
+            }}
             onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-blue)')}
             onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
           >
             Privacy
-          </a>
+          </button>
           {' • '}
           Build:{' '}
           <a
@@ -997,6 +1011,9 @@ export function RightPanel() {
         </div>
       </div>
     </aside>
+
+    {showPrivacyModal && <PrivacyModal onClose={() => setShowPrivacyModal(false)} />}
+    </>
   )
 }
 

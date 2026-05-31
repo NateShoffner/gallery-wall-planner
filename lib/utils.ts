@@ -43,31 +43,56 @@ export function snapToNearbyValid(
   w: number,
   h: number,
   rotation: number,
+  margin: number,
   wall: Wall,
-): { x: number; y: number } {
-  const cx = x + w / 2
-  const cy = y + h / 2
-  const hw = w / 2
-  const hh = h / 2
-  const rad = (rotation * Math.PI) / 180
-  const bw = hw * Math.abs(Math.cos(rad)) + hh * Math.abs(Math.sin(rad))
-  const bh = hw * Math.abs(Math.sin(rad)) + hh * Math.abs(Math.cos(rad))
+  pieces: Piece[],
+  pieceId: string,
+  maxSearchDistance: number = 48, // Maximum distance to search (in inches)
+): { x: number; y: number } | null {
+  // First check if current position is already valid
+  const isOob = checkOob(x, y, w, h, rotation, wall)
+  const hasConflict = checkConflict(x, y, w, h, rotation, margin, pieces, pieceId)
   
-  // Clamp the center to be within bounds
-  let newCx = cx
-  let newCy = cy
-  
-  if (newCx - bw < 0) newCx = bw
-  if (newCx + bw > wall.width) newCx = wall.width - bw
-  if (newCy - bh < 0) newCy = bh
-  if (newCy + bh > wall.height) newCy = wall.height - bh
-  
-  // Convert center back to top-left position
-  return {
-    x: newCx - w / 2,
-    y: newCy - h / 2,
+  if (!isOob && !hasConflict) {
+    return { x, y }
   }
+
+  // Search in a spiral pattern outward from the current position
+  const searchStep = 2 // inches per step
+  let bestPosition: { x: number; y: number; distance: number } | null = null
+
+  for (let distance = searchStep; distance <= maxSearchDistance; distance += searchStep) {
+    // Check positions in a circle at this distance
+    const numPoints = Math.max(8, Math.floor(distance * 4)) // More points for larger distances
+    
+    for (let i = 0; i < numPoints; i++) {
+      const angle = (i / numPoints) * Math.PI * 2
+      const testX = x + Math.cos(angle) * distance
+      const testY = y + Math.sin(angle) * distance
+      
+      // Check if this position is valid
+      const testIsOob = checkOob(testX, testY, w, h, rotation, wall)
+      const testHasConflict = checkConflict(testX, testY, w, h, rotation, margin, pieces, pieceId)
+      
+      if (!testIsOob && !testHasConflict) {
+        const actualDistance = Math.sqrt((testX - x) ** 2 + (testY - y) ** 2)
+        
+        if (!bestPosition || actualDistance < bestPosition.distance) {
+          bestPosition = { x: testX, y: testY, distance: actualDistance }
+        }
+      }
+    }
+    
+    // If we found a valid position in this ring, return it
+    if (bestPosition) {
+      return { x: bestPosition.x, y: bestPosition.y }
+    }
+  }
+
+  // No valid position found within search distance
+  return null
 }
+
 
 
 // ── SAT / OBB collision ──────────────────────────────────────

@@ -30,6 +30,7 @@ interface StoreState {
   snapEnabled: boolean
   showGrid: boolean
   showRulers: boolean
+  showAlignmentGuides: boolean
   showPieceInfo: 'off' | 'hover' | 'always'
   gridSize: number
   allowOverlap: boolean
@@ -57,6 +58,7 @@ interface StoreState {
   setSnap(enabled: boolean): void
   setShowGrid(enabled: boolean): void
   setShowRulers(enabled: boolean): void
+  setShowAlignmentGuides(enabled: boolean): void
   setShowPieceInfo(mode: 'off' | 'hover' | 'always'): void
   setGridSize(size: number): void
   setAllowOverlap(v: boolean): void
@@ -175,6 +177,7 @@ export const useStore = create<StoreState>()(
       snapEnabled: false,
       showGrid: true,
       showRulers: true,
+      showAlignmentGuides: true,
       showPieceInfo: 'hover',
       gridSize: 24,
       allowOverlap: false,
@@ -215,6 +218,9 @@ export const useStore = create<StoreState>()(
       },
       setShowRulers(enabled) {
         set({ showRulers: enabled })
+      },
+      setShowAlignmentGuides(enabled) {
+        set({ showAlignmentGuides: enabled })
       },
       setShowPieceInfo(mode) {
         set({ showPieceInfo: mode })

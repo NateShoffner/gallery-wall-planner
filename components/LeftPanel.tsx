@@ -114,7 +114,7 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
   return (
     <>
       <div className="overflow-y-auto flex-shrink-0" style={{ maxHeight: '60vh' }}>
-      {/* Identity */}
+      {/* Identity & Actions */}
       <div className="px-4 py-3 flex flex-col gap-2.5">
         <div className="flex items-center gap-3">
             {thumbnail ? (
@@ -146,10 +146,55 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
             style={inputStyle}
             onFocus={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--accent-blue)' }}
           />
+          
+          {/* Inline Lock/Remove buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => toggleLock(piece.id)}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-sm transition-all"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
+              title={piece.locked ? 'Unlock' : 'Lock'}
+            >
+              <FontAwesomeIcon icon={piece.locked ? faLockOpen : faLock} />
+              {piece.locked ? 'Unlock' : 'Lock'}
+            </button>
+
+            {confirmDelete ? (
+              <>
+                <button
+                  onClick={() => { setConfirmDelete(false); removePiece(piece.id) }}
+                  className="px-3 py-2 rounded text-sm transition-colors"
+                  style={{ background: 'rgba(251,191,36,0.12)', color: '#fde68a', border: '1px solid var(--border-subtle)' }}
+                  title="Confirm removal"
+                >
+                  <FontAwesomeIcon icon={faCheck} />
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="px-3 py-2 rounded text-sm transition-colors"
+                  style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
+                  title="Cancel"
+                >
+                  <FontAwesomeIcon icon={faXmark} />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-sm transition-all"
+                style={{ background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#f87171' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)' }}
+              >
+                <FontAwesomeIcon icon={faTrash} /> Remove
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Position & Size */}
-        <div className="px-4 py-3 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+        {/* Position */}
+        <div className="px-4 py-3 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+          <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>POSITION</span>
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium flex-shrink-0 w-14" style={{ color: 'var(--text-muted)' }}>X</span>
             <input
@@ -178,6 +223,7 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
 
         {/* Rotation */}
         <div className="px-4 py-3 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+          <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>ROTATION</span>
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium flex-shrink-0 w-14" style={{ color: 'var(--text-muted)' }}>Rotate</span>
             <input
@@ -217,7 +263,7 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
         {/* Margin */}
         <div className="px-4 py-3 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Margin</span>
+            <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>MARGIN</span>
             <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
               {toDisplayUnit(piece.margin, unit).toFixed(unit === 'in' ? 2 : 1)}{suf}
             </span>
@@ -236,6 +282,7 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
 
         {/* Photo */}
         <div className="px-4 py-3 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+          <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>IMAGE</span>
           <div className="flex items-center gap-2">
             {thumbnail ? (
               <>
@@ -331,49 +378,6 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
                 <FontAwesomeIcon icon={faMicrochip} /> Process with AI Now
               </button>
             </div>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="px-4 py-3 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-          <button
-            onClick={() => toggleLock(piece.id)}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded text-sm transition-all"
-            style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
-            title={piece.locked ? 'Unlock' : 'Lock'}
-          >
-            <FontAwesomeIcon icon={piece.locked ? faLockOpen : faLock} />
-            {piece.locked ? 'Unlock' : 'Lock'}
-          </button>
-
-          {confirmDelete ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs flex-1" style={{ color: 'var(--text-muted)' }}>Remove this item?</span>
-              <button
-                onClick={() => { setConfirmDelete(false); removePiece(piece.id) }}
-                className="px-3 py-1.5 rounded text-xs transition-colors"
-                style={{ background: 'rgba(251,191,36,0.12)', color: '#fde68a', border: '1px solid var(--border-subtle)' }}
-              >
-                <FontAwesomeIcon icon={faCheck} /> Yes
-              </button>
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="px-3 py-1.5 rounded text-xs transition-colors"
-                style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
-              >
-                <FontAwesomeIcon icon={faXmark} /> No
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setConfirmDelete(true)}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded text-sm transition-all"
-              style={{ background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#f87171' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)' }}
-            >
-              <FontAwesomeIcon icon={faTrash} /> Remove
-            </button>
           )}
         </div>
       </div>

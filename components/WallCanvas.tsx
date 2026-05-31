@@ -94,6 +94,7 @@ export function WallCanvas({
   const wall = useStore((s) => s.wall)
   const snapEnabled = useStore((s) => s.snapEnabled)
   const showGrid = useStore((s) => s.showGrid)
+  const showAlignmentGuides = useStore((s) => s.showAlignmentGuides)
   const showPieceInfo = useStore((s) => s.showPieceInfo)
   const gridSize = useStore((s) => s.gridSize)
   const allowOverlap = useStore((s) => s.allowOverlap)
@@ -383,9 +384,14 @@ export function WallCanvas({
         drag.currentX = newX
         drag.currentY = newY
 
-        // Detect alignment guides
-        const guides = detectAlignment(newX, newY, drag.pieceW, drag.pieceH, drag.pieceId)
-        setAlignmentGuides(guides)
+        // Update store live for real-time panel updates (without history)
+        updatePiece(drag.pieceId, { x: newX, y: newY })
+
+        // Detect alignment guides only if enabled
+        if (showAlignmentGuides) {
+          const guides = detectAlignment(newX, newY, drag.pieceW, drag.pieceH, drag.pieceId)
+          setAlignmentGuides(guides)
+        }
 
         const el = getPieceEl(wallEl, drag.pieceId)
         if (el) {
@@ -412,6 +418,9 @@ export function WallCanvas({
           (Math.atan2(e.clientY - rot.centerScreenY, e.clientX - rot.centerScreenX) * 180) / Math.PI
         const newRot = snapRotation(rot.initialRotation + (angle - rot.startAngle), snapEnabled)
         rot.currentRotation = newRot
+
+        // Update store live for real-time panel updates (without history)
+        updatePiece(rot.pieceId, { rotation: newRot })
 
         const el = getPieceEl(wallEl, rot.pieceId)
         if (el) {
@@ -453,6 +462,9 @@ export function WallCanvas({
         rs.currentW = result.w
         rs.currentH = result.h
 
+        // Update store live for real-time panel updates (without history)
+        resizePiece(rs.pieceId, { x: result.x, y: result.y, w: result.w, h: result.h })
+
         const el = getPieceEl(wallEl, rs.pieceId)
         if (el) {
           el.style.left = `${result.x * ds}px`
@@ -489,11 +501,25 @@ export function WallCanvas({
           let finalX = drag.startX
           let finalY = drag.startY
           
-          // If out of bounds and snapToNearby is enabled, try to snap to a valid location
-          if (isOob && snapToNearby && !hasConflict) {
-            const snapped = snapToNearbyValid(drag.currentX, drag.currentY, drag.pieceW, drag.pieceH, drag.pieceRot, wall)
-            finalX = snapped.x
-            finalY = snapped.y
+          // If snapToNearby is enabled, try to find nearest valid position
+          if (snapToNearby) {
+            const snapped = snapToNearbyValid(
+              drag.currentX, 
+              drag.currentY, 
+              drag.pieceW, 
+              drag.pieceH, 
+              drag.pieceRot, 
+              drag.pieceMargin,
+              wall,
+              piecesRef.current,
+              drag.pieceId
+            )
+            
+            if (snapped) {
+              finalX = snapped.x
+              finalY = snapped.y
+            }
+            // If no valid position found, piece snaps back to original position
           }
           
           const el = wallEl ? getPieceEl(wallEl, drag.pieceId) : null
@@ -537,12 +563,26 @@ export function WallCanvas({
           let finalX = rot.pieceX
           let finalY = rot.pieceY
           
-          // If out of bounds and snapToNearby is enabled, try to snap to a valid location with the new rotation
-          if (isOob && snapToNearby && !hasConflict) {
-            const snapped = snapToNearbyValid(rot.pieceX, rot.pieceY, rot.pieceW, rot.pieceH, rot.currentRotation, wall)
-            finalX = snapped.x
-            finalY = snapped.y
-            finalRot = rot.currentRotation
+          // If snapToNearby is enabled, try to find nearest valid position with new rotation
+          if (snapToNearby) {
+            const snapped = snapToNearbyValid(
+              rot.pieceX,
+              rot.pieceY,
+              rot.pieceW,
+              rot.pieceH,
+              rot.currentRotation,
+              rot.pieceMargin,
+              wall,
+              piecesRef.current,
+              rot.pieceId
+            )
+            
+            if (snapped) {
+              finalX = snapped.x
+              finalY = snapped.y
+              finalRot = rot.currentRotation
+            }
+            // If no valid position found, rotation reverts to original
           }
           
           const el = wallEl ? getPieceEl(wallEl, rot.pieceId) : null
@@ -599,7 +639,7 @@ export function WallCanvas({
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [updatePiece, resizePiece, pushHistory, unit, detectAlignment])
+  }, [updatePiece, resizePiece, pushHistory, unit, detectAlignment, showAlignmentGuides])
 
   // ── Render ──────────────────────────────────────────────────
 
@@ -899,7 +939,7 @@ export function WallCanvas({
           )}
 
           {/* Alignment guide lines */}
-          {!previewMode && (alignmentGuides.vertical.length > 0 || alignmentGuides.horizontal.length > 0) && (
+          {!previewMode && showAlignmentGuides && (alignmentGuides.vertical.length > 0 || alignmentGuides.horizontal.length > 0) && (
             <>
               {alignmentGuides.vertical.map((x, i) => (
                 <div
