@@ -1,9 +1,11 @@
+'use client'
+
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCheck, faXmark, faRulerCombined } from '@fortawesome/free-solid-svg-icons'
-import { fromDisplayUnit, unitSuffix, unitStep } from '../lib/utils'
-import { useStore } from '../store/useStore'
-import type { WorkArea } from '../types'
+import { fromDisplayUnit, unitSuffix, unitStep } from '@/lib/utils'
+import { useStore } from '@/store/useStore'
+import type { WorkArea } from '@/types'
 
 type HandleId = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'move'
 
@@ -326,3 +328,4 @@ export function WallAreaModal({
     </div>
   )
 }
+

@@ -1,9 +1,11 @@
+'use client'
+
 import { useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPlus, faXmark, faRotateLeft, faRotateRight, faChevronDown, faChevronUp } from '@fortawesome/free-solid-svg-icons'
-import { useStore } from '../store/useStore'
-import { fromDisplayUnit, unitSuffix } from '../lib/utils'
-import { PieceCard } from './PieceCard'
+import { useStore } from '@/store/useStore'
+import { fromDisplayUnit, unitSuffix } from '@/lib/utils'
+import { PieceCard } from '@/components/PieceCard'
 
 function HistorySection() {
   const undoStack = useStore((s) => s.undoStack)
@@ -303,3 +305,4 @@ export function Sidebar() {
     </aside>
   )
 }
+

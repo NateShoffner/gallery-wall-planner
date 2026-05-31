@@ -1,3 +1,5 @@
+'use client'
+
 import { useRef, useState, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
@@ -5,8 +7,9 @@ import {
   faObjectGroup, faFileImport, faFileExport,
   faCheck, faXmark, faCamera, faChevronDown, faEye,
 } from '@fortawesome/free-solid-svg-icons'
-import { useStore } from '../store/useStore'
-import type { ZoomMode } from '../App'
+import { useStore } from '@/store/useStore'
+import { BatchAIProcessModal } from '@/components/BatchAIProcessModal'
+import type { ZoomMode } from '@/app/page'
 
 function Btn({
   children,
@@ -106,11 +109,20 @@ export function Toolbar({
   const exportLayout = useStore((s) => s.exportLayout)
   const exportAsImage = useStore((s) => s.exportAsImage)
   const importLayout = useStore((s) => s.importLayout)
+  const getUnprocessedPieceCount = useStore((s) => s.getUnprocessedPieceCount)
+  const pieces = useStore((s) => s.pieces)
 
   const importRef = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState<PendingAction>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportMenuRef = useRef<HTMLDivElement>(null)
+  
+  // Batch AI processing state
+  const [batchProcessModalOpen, setBatchProcessModalOpen] = useState(false)
+  const unprocessedCount = getUnprocessedPieceCount()
+  const unprocessedPieceIds = pieces
+    .filter(p => p.imageId && !p.aiProcessed)
+    .map(p => p.id)
 
   const isFit = zoomMode === 'fit'
   const displayScale = typeof zoomMode === 'number' ? zoomMode : 1
@@ -221,6 +233,19 @@ export function Toolbar({
           >
             <FontAwesomeIcon icon={faObjectGroup} /> Re-arrange
           </Btn>
+
+          <Divider />
+          
+          {/* Batch AI Processing */}
+          {unprocessedCount > 0 && (
+            <Btn
+              onClick={() => setBatchProcessModalOpen(true)}
+              title={`Process ${unprocessedCount} image${unprocessedCount !== 1 ? 's' : ''} with AI`}
+              accent="violet"
+            >
+              🤖 Process {unprocessedCount} Image{unprocessedCount !== 1 ? 's' : ''} with AI
+            </Btn>
+          )}
 
           <Divider />
 
@@ -374,6 +399,16 @@ export function Toolbar({
           e.target.value = ''
         }}
       />
+      
+      {/* Batch AI Process Modal */}
+      {batchProcessModalOpen && unprocessedPieceIds.length > 0 && (
+        <BatchAIProcessModal
+          pieceIds={unprocessedPieceIds}
+          onComplete={() => setBatchProcessModalOpen(false)}
+          onCancel={() => setBatchProcessModalOpen(false)}
+        />
+      )}
     </header>
   )
 }
+

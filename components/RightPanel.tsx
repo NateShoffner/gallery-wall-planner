@@ -1,3 +1,5 @@
+'use client'
+
 import { useRef, useState, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
@@ -5,12 +7,14 @@ import {
   faGear, faBorderAll, faSun, faMoon, faXmark, faCheck,
   faRulerCombined, faEyeSlash,
 } from '@fortawesome/free-solid-svg-icons'
-import { useStore } from '../store/useStore'
-import { toDisplayUnit, fromDisplayUnit, unitSuffix, unitStep } from '../lib/utils'
-import { PATTERN_LABELS } from '../lib/constants'
-import type { Piece, MeasureUnit, ClusterPattern, WorkArea } from '../types'
-import { WallAreaModal } from './WallAreaModal'
-import { ErrorLogSection } from './ErrorLogSection'
+import toast from 'react-hot-toast'
+import { useStore } from '@/store/useStore'
+import { toDisplayUnit, fromDisplayUnit, unitSuffix, unitStep } from '@/lib/utils'
+import { PATTERN_LABELS } from '@/lib/constants'
+import type { Piece, MeasureUnit, ClusterPattern, WorkArea, AIProcessingData } from '@/types'
+import { WallAreaModal } from '@/components/WallAreaModal'
+import { ErrorLogSection } from '@/components/ErrorLogSection'
+import { ImageProcessModal } from '@/components/ImageProcessModal'
 
 // ── SVG Pattern Previews ────────────────────────────────────────
 
@@ -608,6 +612,7 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
   const removePiece = useStore((s) => s.removePiece)
   const setPieceImage = useStore((s) => s.setPieceImage)
   const clearPieceImage = useStore((s) => s.clearPieceImage)
+  const reprocessPieceWithAI = useStore((s) => s.reprocessPieceWithAI)
 
   const imgRef = useRef<HTMLInputElement>(null)
   const thumbnail = piece.imageId ? imageCache[piece.imageId] : null
@@ -616,6 +621,12 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
 
   const [nameLocal, setNameLocal] = useState(piece.name)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  
+  // AI Processing Modal state
+  const [imageProcessModalOpen, setImageProcessModalOpen] = useState(false)
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
+  const [reprocessMode, setReprocessMode] = useState(false)
+
 
   useEffect(() => { setNameLocal(piece.name) }, [piece.name])
   useEffect(() => {
@@ -626,6 +637,64 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
 
   function commitName() {
     if (nameLocal !== piece.name) setPieceProps(piece.id, { name: nameLocal })
+  }
+  
+  // AI Processing handlers
+  function handlePieceImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (f) {
+      // Validate file size (5MB limit)
+      if (f.size > 5 * 1024 * 1024) {
+        toast.error('Image must be under 5MB')
+        e.target.value = ''
+        return
+      }
+      
+      // Validate file type
+      if (!f.type.startsWith('image/')) {
+        toast.error('Please select an image file')
+        e.target.value = ''
+        return
+      }
+      
+      // Open AI processing modal
+      setSelectedImageFile(f)
+      setReprocessMode(false)
+      setImageProcessModalOpen(true)
+    }
+    e.target.value = ''
+  }
+  
+  async function handleRetroactiveAIProcessing() {
+    try {
+      const file = await reprocessPieceWithAI(piece.id)
+      setSelectedImageFile(file)
+      setReprocessMode(true)
+      setImageProcessModalOpen(true)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Failed to load image: ${errorMessage}`)
+    }
+  }
+  
+  function handleImageProcessed(processedFile: File, aiData?: AIProcessingData) {
+    void setPieceImage(piece.id, processedFile, aiData).then(() => {
+      setImageProcessModalOpen(false)
+      setSelectedImageFile(null)
+      setReprocessMode(false)
+      
+      if (aiData) {
+        toast.success(`Image AI processed! Confidence: ${(aiData.confidence * 100).toFixed(0)}%`)
+      } else {
+        toast.success('Image uploaded successfully')
+      }
+    })
+  }
+  
+  function handleImageProcessCancel() {
+    setImageProcessModalOpen(false)
+    setSelectedImageFile(null)
+    setReprocessMode(false)
   }
 
   return (
@@ -747,25 +816,68 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
       {/* Photo */}
       <div className="px-4 py-3 flex flex-col gap-2.5 section-block">
         <FormRow label="Photo" wide>
-          <button
-            onClick={() => imgRef.current?.click()}
-            className="flex-1 px-2.5 py-1.5 rounded text-sm transition-colors truncate flex items-center gap-1.5"
-            style={{
-              background: thumbnail ? 'rgba(59,130,246,0.15)' : 'var(--bg-input)',
-              border: `1px solid ${thumbnail ? 'rgba(59,130,246,0.4)' : 'var(--border-subtle)'}`,
-              color: thumbnail ? '#93c5fd' : 'var(--text-muted)',
-            }}
-          >
-            <FontAwesomeIcon icon={faImage} className="text-xs" />
-            {thumbnail ? 'Attached' : 'Add photo'}
-          </button>
-          {thumbnail && (
+          {thumbnail ? (
+            <div className="flex items-center gap-2 flex-1">
+              <button
+                onClick={() => imgRef.current?.click()}
+                className="flex-1 px-2.5 py-1.5 rounded text-sm transition-colors truncate flex items-center gap-1.5"
+                style={{
+                  background: 'rgba(59,130,246,0.15)',
+                  border: '1px solid rgba(59,130,246,0.4)',
+                  color: '#93c5fd',
+                }}
+              >
+                <FontAwesomeIcon icon={faImage} className="text-xs" />
+                Attached
+              </button>
+              
+              {/* AI Status Badge */}
+              {piece.aiProcessed ? (
+                <span 
+                  className="px-2 py-1 rounded text-xs font-medium flex items-center gap-1 flex-shrink-0"
+                  style={{
+                    background: 'rgba(59, 130, 246, 0.15)',
+                    color: '#93c5fd',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                  }}
+                  title={`AI processed on ${new Date(piece.aiProcessingData?.processedAt || 0).toLocaleDateString()}\nRotation: ${piece.aiProcessingData?.rotation.toFixed(1)}°\nConfidence: ${((piece.aiProcessingData?.confidence || 0) * 100).toFixed(0)}%`}
+                >
+                  🤖 AI ✓
+                </span>
+              ) : (
+                <span 
+                  className="px-2 py-1 rounded text-xs font-medium flex items-center gap-1 flex-shrink-0"
+                  style={{
+                    background: 'var(--bg-input)',
+                    color: 'var(--text-muted)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                  title="Not AI processed"
+                >
+                  🤖 AI ✗
+                </span>
+              )}
+              
+              <button
+                onClick={() => void clearPieceImage(piece.id)}
+                className="w-8 h-7 rounded flex items-center justify-center text-xs flex-shrink-0"
+                style={{ color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+              >
+                <FontAwesomeIcon icon={faXmark} />
+              </button>
+            </div>
+          ) : (
             <button
-              onClick={() => void clearPieceImage(piece.id)}
-              className="w-8 h-7 rounded flex items-center justify-center text-xs"
-              style={{ color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+              onClick={() => imgRef.current?.click()}
+              className="flex-1 px-2.5 py-1.5 rounded text-sm transition-colors truncate flex items-center gap-1.5"
+              style={{
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-muted)',
+              }}
             >
-              <FontAwesomeIcon icon={faXmark} />
+              <FontAwesomeIcon icon={faImage} className="text-xs" />
+              Add photo
             </button>
           )}
           <input
@@ -773,13 +885,34 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) void setPieceImage(piece.id, f)
-              e.target.value = ''
-            }}
+            onChange={handlePieceImageSelect}
           />
         </FormRow>
+        
+        {/* Retroactive AI Processing */}
+        {thumbnail && !piece.aiProcessed && (
+          <div 
+            className="mt-2 p-3 rounded"
+            style={{
+              background: 'rgba(59, 130, 246, 0.08)',
+              border: '1px solid rgba(59, 130, 246, 0.2)',
+            }}
+          >
+            <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+              ⚡ This image hasn&apos;t been AI processed
+            </p>
+            <button
+              onClick={handleRetroactiveAIProcessing}
+              className="w-full px-3 py-1.5 rounded text-sm font-medium transition-colors"
+              style={{
+                background: 'var(--accent-blue)',
+                color: 'white',
+              }}
+            >
+              🤖 Process with AI Now
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Actions */}
@@ -807,6 +940,17 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
           </PanelBtn>
         )}
       </div>
+      
+      {/* AI Image Process Modal */}
+      {imageProcessModalOpen && selectedImageFile && (
+        <ImageProcessModal
+          file={selectedImageFile}
+          onCancel={handleImageProcessCancel}
+          onConfirm={handleImageProcessed}
+          mode={reprocessMode ? 'reprocess' : 'upload'}
+          existingAIData={piece.aiProcessingData}
+        />
+      )}
     </div>
   )
 }
@@ -1218,7 +1362,7 @@ export function RightPanel() {
         <div>
           All rights reserved •{' '}
           <a
-            href={`https://github.com/NateShoffner/gallery-wall-planner/commit/${__GIT_HASH__}`}
+            href={`https://github.com/NateShoffner/gallery-wall-planner/commit/${process.env.GIT_HASH || 'unknown'}`}
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontFamily: 'monospace' }}
@@ -1226,10 +1370,11 @@ export function RightPanel() {
             onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
             title="View commit on GitHub"
           >
-            build: {__GIT_HASH__}
+            build: {process.env.GIT_HASH || 'unknown'}
           </a>
         </div>
       </div>
     </aside>
   )
 }
+

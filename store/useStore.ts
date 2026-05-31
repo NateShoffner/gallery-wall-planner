@@ -1,18 +1,20 @@
+'use client'
+
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import toast from 'react-hot-toast'
-import { COLORS, DEFAULT_PIECE_MARGIN, DEFAULT_GAP, DEMO_SPECS, PATTERN_LABELS } from '../lib/constants'
+import { COLORS, DEFAULT_PIECE_MARGIN, DEFAULT_GAP, DEMO_SPECS, PATTERN_LABELS } from '@/lib/constants'
 import {
   getRandomPos, placeWithoutOverlap, swapShuffle,
   compactCluster, crossCluster, diagonalCluster, brickCluster,
   gridCluster, columnCluster, scatteredCluster, circularCluster,
   pyramidCluster, spiralCluster, centeredCluster,
   snapRotation, resolveOverlaps, checkClusterFeasibility, hasOverlaps,
-} from '../lib/utils'
+} from '@/lib/utils'
 import {
   storeImage, getAllImages, deleteImage, clearAllImages, fileToDataUrl,
-} from '../lib/imageStore'
-import type { Piece, Wall, WorkArea, HistorySnapshot, LayoutExport, MeasureUnit, ClusterPattern, ErrorLogEntry } from '../types'
+} from '@/lib/imageStore'
+import type { Piece, Wall, WorkArea, HistorySnapshot, LayoutExport, MeasureUnit, ClusterPattern, ErrorLogEntry, AIProcessingData } from '@/types'
 
 const MAX_HISTORY = 50
 
@@ -87,11 +89,15 @@ interface StoreState {
 
   // ── Images ───────────────────────────────────────────────
   initImages(): Promise<void>
-  setPieceImage(pieceId: string, file: File): Promise<void>
+  setPieceImage(pieceId: string, file: File, aiData?: AIProcessingData): Promise<void>
   clearPieceImage(pieceId: string): Promise<void>
   setWallBgImage(file: File): Promise<void>
   setWallBgImageDataUrl(dataUrl: string): Promise<void>
   clearWallBgImage(): Promise<void>
+  
+  // ── AI Processing ────────────────────────────────────────
+  reprocessPieceWithAI(pieceId: string): Promise<File>
+  getUnprocessedPieceCount(): number
 
   // ── Import / Export ───────────────────────────────────────
   exportLayout(): Promise<void>
@@ -539,7 +545,7 @@ export const useStore = create<StoreState>()(
         set({ imageCache: images })
       },
 
-      async setPieceImage(pieceId, file) {
+      async setPieceImage(pieceId, file, aiData) {
         const dataUrl = await fileToDataUrl(file)
         const imageId = `piece-${pieceId}-${Date.now()}`
         const piece = get().pieces.find((p) => p.id === pieceId)
@@ -547,7 +553,19 @@ export const useStore = create<StoreState>()(
         await storeImage(imageId, dataUrl)
         set((s) => ({
           imageCache: { ...s.imageCache, [imageId]: dataUrl },
-          pieces: s.pieces.map((p) => (p.id === pieceId ? { ...p, imageId } : p)),
+          pieces: s.pieces.map((p) => 
+            p.id === pieceId 
+              ? { 
+                  ...p, 
+                  imageId,
+                  aiProcessed: !!aiData,
+                  aiProcessingData: aiData ? {
+                    ...aiData,
+                    processedAt: Date.now(),
+                  } : undefined,
+                } 
+              : p
+          ),
         }))
       },
 
@@ -558,7 +576,7 @@ export const useStore = create<StoreState>()(
         const oldId = piece.imageId
         set((s) => ({
           imageCache: Object.fromEntries(Object.entries(s.imageCache).filter(([k]) => k !== oldId)),
-          pieces: s.pieces.map((p) => (p.id === pieceId ? { ...p, imageId: null } : p)),
+          pieces: s.pieces.map((p) => (p.id === pieceId ? { ...p, imageId: null, aiProcessed: false, aiProcessingData: undefined } : p)),
         }))
       },
 
@@ -837,6 +855,32 @@ export const useStore = create<StoreState>()(
 
       clearSuppressedErrors() {
         set({ suppressedErrors: new Set() })
+      },
+      
+      // ── AI Processing ─────────────────────────────────────────
+      
+      async reprocessPieceWithAI(pieceId) {
+        const piece = get().pieces.find((p) => p.id === pieceId)
+        
+        if (!piece?.imageId) {
+          throw new Error('Piece has no image')
+        }
+        
+        // Get image data from cache
+        const imageUrl = get().imageCache[piece.imageId]
+        if (!imageUrl) {
+          throw new Error('Image not found in cache')
+        }
+        
+        // Convert data URL to File object
+        const blob = await fetch(imageUrl).then(r => r.blob())
+        const file = new File([blob], 'image.jpg', { type: blob.type })
+        
+        return file
+      },
+      
+      getUnprocessedPieceCount() {
+        return get().pieces.filter(p => p.imageId && !p.aiProcessed).length
       },
     }),
 

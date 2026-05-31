@@ -1,3 +1,5 @@
+'use client'
+
 import { useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
@@ -8,8 +10,8 @@ import {
   faEyeSlash,
   faTrash,
 } from '@fortawesome/free-solid-svg-icons'
-import { useStore } from '../store/useStore'
-import type { ErrorLogEntry } from '../types'
+import { useStore } from '@/store/useStore'
+import type { ErrorLogEntry } from '@/types'
 
 function formatTime(ts: number): string {
   const diff = Date.now() - ts
@@ -266,3 +268,4 @@ export function ErrorLogSection() {
     </div>
   )
 }
+

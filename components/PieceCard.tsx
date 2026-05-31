@@ -1,9 +1,11 @@
+'use client'
+
 import { memo, useState, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faLock, faLockOpen, faTrash, faCheck, faXmark } from '@fortawesome/free-solid-svg-icons'
-import { useStore } from '../store/useStore'
-import { formatAngle, toDisplayUnit, unitSuffix } from '../lib/utils'
-import type { Piece } from '../types'
+import { useStore } from '@/store/useStore'
+import { formatAngle, toDisplayUnit, unitSuffix } from '@/lib/utils'
+import type { Piece } from '@/types'
 
 interface PieceCardProps {
   piece: Piece
@@ -131,3 +133,4 @@ export const PieceCard = memo(function PieceCard({ piece, selected }: PieceCardP
     </div>
   )
 })
+

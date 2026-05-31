@@ -1,7 +1,9 @@
+'use client'
+
 import { memo, useState } from 'react'
-import { checkOob } from '../lib/utils'
-import { toDisplayUnit, unitSuffix } from '../lib/utils'
-import type { Piece, Wall, ResizeHandle, MeasureUnit } from '../types'
+import { checkOob } from '@/lib/utils'
+import { toDisplayUnit, unitSuffix } from '@/lib/utils'
+import type { Piece, Wall, ResizeHandle, MeasureUnit } from '@/types'
 
 const RESIZE_HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 
@@ -152,3 +154,4 @@ export const CanvasPiece = memo(function CanvasPiece({
     </div>
   )
 })
+

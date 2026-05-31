@@ -1,10 +1,12 @@
+'use client'
+
 import { useRef, useEffect, useCallback, useState } from 'react'
-import { useStore } from '../store/useStore'
-import { CanvasPiece } from './CanvasPiece'
-import { Ruler } from './Ruler'
-import { SCALE } from '../lib/constants'
-import { snapToGrid, snapRotation, checkOob, snapToNearbyValid, checkConflict, applyResize } from '../lib/utils'
-import type { Piece, ResizeHandle } from '../types'
+import { useStore } from '@/store/useStore'
+import { CanvasPiece } from '@/components/CanvasPiece'
+import { Ruler } from '@/components/Ruler'
+import { SCALE } from '@/lib/constants'
+import { snapToGrid, snapRotation, checkOob, snapToNearbyValid, checkConflict, applyResize } from '@/lib/utils'
+import type { Piece, ResizeHandle } from '@/types'
 
 const RULER_SIZE = 26  // Updated to match Ruler.tsx
 const PAD_SIDE = RULER_SIZE + 8  // Reduced from 12 to 8 for tighter spacing
@@ -624,3 +626,4 @@ export function WallCanvas({
     </div>
   )
 }
+

@@ -1,5 +1,7 @@
+'use client'
+
 import type { CSSProperties } from 'react'
-import type { MeasureUnit } from '../types'
+import type { MeasureUnit } from '@/types'
 
 interface RulerProps {
   orientation: 'horizontal' | 'vertical'
@@ -136,3 +138,4 @@ export function Ruler({ orientation, totalInches, scale, unit, style }: RulerPro
     </svg>
   )
 }
+

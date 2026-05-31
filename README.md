@@ -1,125 +1,148 @@
 # Gallery Wall Planner
 
-A browser-based gallery wall planner. Arrange artwork, posters, frames, and any rectangular items on a virtual wall — visualize layouts before hanging anything, then export the result.
+A browser-based gallery wall planner with AI-powered image straightening and auto-cropping.
 
 ## Features
 
-### Wall Setup
-- Set wall dimensions in **inches, centimeters, feet, or meters**
-- Adjust spacing gap between items with slider or precise numeric input
-- Set a wall background color
-- Upload a photo of your actual wall for a realistic preview
-- **Define a usable area** on the photo — select only the open wall space (avoiding windows, doors, etc.) and enter its real-world dimensions; the full photo stays visible for spatial context
+### Core Functionality
+- **Interactive Canvas**: Drag, drop, and arrange pieces on a virtual wall
+- **Flexible Measurements**: Support for inches, centimeters, and millimeters
+- **Multiple Patterns**: Pre-built arrangements (shelf, cross, diagonal, grid, scattered)
+- **Undo/Redo**: Full history tracking with labeled actions
+- **Export/Import**: Save and load layouts as JSON
+- **Image Export**: Export wall layouts as PNG, WebP, or SVG
 
-### Item Management
-- Add items (artwork, posters, frames, prints) by specifying width and height
-- Per-item name, color, and photo attachment
-- Lock individual items to prevent accidental moves
-- Resize items by dragging corner and edge handles
-- Rotate by dragging the rotation handle above each item
-
-### Layout Tools
-| Tool | What it does |
-|---|---|
-| **Drag** | Move an item anywhere on the wall |
-| **Rotate handle** | Free-rotate (snaps to 15° when snap is on) |
-| **Resize handles** | 8-point resize with opposite-anchor math |
-| **Shuffle** | Swap items with identical dimensions randomly |
-| **Cluster** | Rearrange all items using a randomly selected layout pattern |
-| **Clear** | Remove all items from Settings → Danger Zone |
-| **Demo** | Load a sample gallery layout (requires confirmation) |
-
-### Cluster Patterns
-Seven patterns are available. Enable any combination in **Settings → Cluster Patterns**; the Cluster button picks randomly from enabled ones each time:
-
-| Pattern | Description |
-|---|---|
-| Shelf | Compact centered rows |
-| Cross | Plus / + shape with arms |
-| Diagonal | Staircase cascade |
-| Brick | Offset alternating rows |
-| Grid | Even columns and rows |
-| Column | Single centered vertical stack |
-| Scattered | Organic spread with slight rotations |
-
-When **Overlap** is disabled, Cluster automatically resolves any collisions after placing items with an improved physics-based separation algorithm (up to 100 iterations).
-
-**Feasibility Check**: The cluster function now validates that your items can physically fit within the wall area considering spacing requirements. If clustering is impossible (e.g., items are too large or gap is too wide), you'll receive a helpful error message with suggestions.
-
-### Settings
-- **Units** — Inches, Centimeters, Feet, or Meters (with live ruler updates)
-- **Gap** — Adjustable via slider or numeric input for precise spacing control
-- **Overlap** — Allow or block item-on-item overlap (enforced during drag, rotate, and cluster)
-- **Snap** — Snap items to a configurable pixel grid
-- **Cluster Patterns** — Multi-select which patterns the Cluster button draws from
-- **Appearance** — Dark / Light mode toggle
-- **Danger Zone** — Clear all items or reset everything to defaults
-
-### History
-- 50-step undo/redo (`Ctrl+Z` / `Ctrl+Y` or toolbar buttons)
-- Full history panel in the left sidebar (expanded by default)
-- Hover any entry to **Restore** directly to that state
-
-### Import / Export
-- **Import Plan** — Restore a previously exported layout from JSON
-- **Export Plan** — Save the full layout (wall, items, and embedded images) as a JSON file
-- **Export As...** — Multiple export formats:
-  - **PNG Image** — Standard raster export with items, photos, labels, and rotation
-  - **WebP Image** — Efficient compressed image format
-  - **SVG Vector** — Scalable vector graphics for print-quality output
-
-### Display
-- **Auto-fit** — Wall scales automatically to fill the viewport
-- **Zoom controls** — `−` / `Fit` / `+` in the toolbar (relocated from canvas area)
-- **Rulers** — Toggle with improved switch control in toolbar
-  - Automatically adjusts to selected measurement unit (in/cm/ft/m)
-  - Enhanced readability with larger text and better contrast
-  - Positioned flush with usable wall area
-
-## UI Improvements
-
-- **Consistent button heights** — All toolbar buttons standardized to 32px
-- **Better text contrast** — Improved readability in both light and dark modes
-- **Larger sidebar text** — Section headers and labels increased for better legibility
-- **Generic terminology** — Changed from "Canvas" to "Item" throughout the interface
-- **Professional toggle switch** — Proper toggle design for ruler visibility
-- **Wider dimension inputs** — More space for entering wall and item sizes
-- **Proper cursors** — Text cursor for text/number inputs, pointer for interactive elements
+### AI Image Processing (GPT-4 Vision)
+- **Auto-Straighten**: Automatically detect and correct image rotation
+- **Smart Cropping**: Remove excess background/margins around artwork
+- **Manual Adjustments**: Fine-tune AI suggestions with rotation and crop sliders
+- **Batch Processing**: Process multiple images sequentially
+- **Retroactive Processing**: Apply AI to previously uploaded images
+- **Confidence Threshold**: Only applies corrections above 30% confidence
+- **File Validation**: 5MB size limit, image files only
 
 ## Getting Started
 
+### Prerequisites
+- Node.js 18+ 
+- OpenAI API key (for AI features)
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd canvas-mapper
+```
+
+2. Install dependencies:
 ```bash
 npm install
+```
+
+3. Create `.env.local` file with your OpenAI API key:
+```bash
+OPENAI_API_KEY=sk-proj-your-api-key-here
+```
+
+4. Run the development server:
+```bash
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173).
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-## Building
+### Building for Production
 
 ```bash
 npm run build
+npm start
 ```
-
-Output goes to `dist/`. The app is fully client-side with no backend.
 
 ## Tech Stack
 
-- **React 19** + **TypeScript**
-- **Zustand 5** (with `persist` middleware — layout saved to `localStorage`, images to IndexedDB)
-- **Tailwind CSS v4**
-- **Vite 6**
-- **Font Awesome** (free solid icons)
+- **Framework**: Next.js 16.2.6 (App Router, Turbopack)
+- **UI**: React 19.1.0, Tailwind CSS 4.1.8
+- **State Management**: Zustand
+- **AI**: OpenAI GPT-4o (vision capabilities)
+- **Image Processing**: Sharp (server-side), Canvas API (client-side)
+- **Icons**: Font Awesome
+- **Notifications**: React Hot Toast
 
-## Data & Privacy
+## Project Structure
 
-Everything runs in the browser. No data is sent to any server. Layout state persists in `localStorage`; uploaded images persist in `IndexedDB`. Clearing site data removes all stored layouts.
+```
+canvas-mapper/
+├── app/
+│   ├── api/process-image/    # AI processing endpoint
+│   ├── globals.css            # Global styles
+│   ├── layout.tsx             # Root layout
+│   ├── page.tsx               # Main page
+│   └── providers.tsx          # Client-side providers
+├── components/                # React components
+│   ├── BatchAIProcessModal.tsx
+│   ├── ImageProcessModal.tsx
+│   ├── RightPanel.tsx
+│   ├── Sidebar.tsx
+│   ├── Toolbar.tsx
+│   ├── WallCanvas.tsx
+│   └── ...
+├── lib/                       # Utilities & helpers
+│   ├── aiImageProcessor.ts    # AI client
+│   ├── imageTransform.ts      # Image transformations
+│   ├── openai.ts              # OpenAI client
+│   ├── utils.ts               # General utilities
+│   └── ...
+├── store/                     # Zustand state management
+│   └── useStore.ts
+├── types/                     # TypeScript definitions
+│   └── index.ts
+└── public/                    # Static assets
+```
 
-## Keyboard Shortcuts
+## AI Features Usage
 
-| Shortcut | Action |
-|---|---|
-| `Ctrl+Z` | Undo |
-| `Ctrl+Y` / `Ctrl+Shift+Z` | Redo |
-| `Enter` (in inputs) | Confirm value |
-| `Escape` (in inputs) | Cancel / revert |
+### Upload with AI Processing (Default)
+1. Click "Add Piece" in the sidebar
+2. Select an image (AI checkbox is checked by default)
+3. Review before/after preview
+4. Adjust rotation/crop if needed
+5. Click "Accept" to apply
+
+### Retroactive Processing
+1. Upload images without AI processing (uncheck AI checkbox)
+2. Click "Process with AI Now" button in piece settings
+3. Review and accept/reject changes
+
+### Batch Processing
+1. Upload multiple images without AI
+2. Click "🤖 Process N Images with AI" in toolbar
+3. Wait for sequential processing
+4. Review results for each piece
+
+## Cost Estimate
+
+- **Model**: GPT-4o (vision)
+- **Cost per image**: ~$0.02-0.03 USD
+- **100 images/month**: ~$2-3 USD
+- **1,000 images/month**: ~$20-30 USD
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENAI_API_KEY` | Yes | OpenAI API key for AI image processing |
+
+## Browser Support
+
+- Chrome/Edge 90+
+- Firefox 88+
+- Safari 14+
+
+## License
+
+MIT
+
+## Contributing
+
+Contributions welcome! Please open an issue or submit a PR.

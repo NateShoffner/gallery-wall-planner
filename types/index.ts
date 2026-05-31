@@ -25,6 +25,20 @@ export interface Piece {
   color: string
   margin: number      // inches
   imageId: string | null
+  
+  // AI Processing metadata
+  aiProcessed?: boolean
+  aiProcessingData?: {
+    rotation: number             // Applied rotation (degrees)
+    bounds: {                    // Applied crop bounds (normalized 0-1)
+      x: number
+      y: number
+      w: number
+      h: number
+    }
+    confidence: number           // AI confidence score (0-1)
+    processedAt: number          // Timestamp (Date.now())
+  }
 }
 
 /** Fraction (0–1) of the image's natural dimensions that the workspace occupies. */
@@ -73,4 +87,27 @@ export interface ErrorLogEntry {
     allowOverlap?: boolean
   }
   dismissed?: boolean
+}
+
+export interface AIProcessingResult {
+  rotation: number
+  bounds: {
+    x: number
+    y: number
+    w: number
+    h: number
+  }
+  confidence: number
+}
+
+export interface AIProcessingData {
+  rotation: number
+  bounds: {
+    x: number
+    y: number
+    w: number
+    h: number
+  }
+  confidence: number
+  processedAt?: number
 }
