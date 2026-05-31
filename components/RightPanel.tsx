@@ -14,6 +14,7 @@ import { PATTERN_LABELS } from '@/lib/constants'
 import type { Piece, MeasureUnit, ClusterPattern, WorkArea, AIProcessingData } from '@/types'
 import { WallAreaModal } from '@/components/WallAreaModal'
 import { ErrorLogSection } from '@/components/ErrorLogSection'
+import { HistorySection } from '@/components/HistorySection'
 import { ImageProcessModal } from '@/components/ImageProcessModal'
 
 // ── SVG Pattern Previews ────────────────────────────────────────
@@ -169,9 +170,9 @@ function FormRow({ label, children, wide }: {
   wide?: boolean
 }) {
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-2.5 justify-between">
       <Label wide={wide}>{label}</Label>
-      <div className="flex items-center gap-2 flex-1 min-w-0">{children}</div>
+      <div className="flex items-center gap-2 justify-end">{children}</div>
     </div>
   )
 }
@@ -203,7 +204,7 @@ function NumInput({
   }
 
   return (
-    <div className="flex items-center gap-1.5 flex-1">
+    <div className="flex items-center gap-1.5">
       <input
         type="number"
         value={local}
@@ -216,20 +217,20 @@ function NumInput({
           if (e.key === 'Enter') commit()
           if (e.key === 'Escape') setLocal(String(value))
         }}
-        className="px-2.5 py-1.5 rounded text-sm tabular-nums"
+        className="px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
         style={{
           background: 'var(--bg-input)',
           border: '1px solid var(--border-subtle)',
           color: 'var(--text-primary)',
           outline: 'none',
           minWidth: minWidth ?? 60,
-          flex: 1,
+          width: minWidth ?? 60,
         }}
         onFocus={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--accent-blue)' }}
         onBlurCapture={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-subtle)' }}
       />
       {unit && (
-        <span className="text-xs flex-shrink-0 w-6 text-right" style={{ color: 'var(--text-muted)' }}>
+        <span className="text-xs flex-shrink-0 w-6 text-left" style={{ color: 'var(--text-muted)' }}>
           {unit}
         </span>
       )}
@@ -375,7 +376,7 @@ function WallSettings({ unit }: { unit: MeasureUnit }) {
             onChange={(e) => setW(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && apply()}
             onBlur={apply}
-            className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums"
+            className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
             style={inputStyle}
           />
           <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0 }}>×</span>
@@ -387,7 +388,7 @@ function WallSettings({ unit }: { unit: MeasureUnit }) {
             onChange={(e) => setH(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && apply()}
             onBlur={apply}
-            className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums"
+            className="w-20 px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
             style={inputStyle}
           />
           <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0 }}>{suf}</span>
@@ -510,16 +511,6 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
     <div className="px-4 py-3 flex flex-col gap-3 section-block">
       <FormRow label="Gap" wide>
         <input
-          type="range"
-          min={0}
-          max={unit === 'cm' ? 12.7 : unit === 'ft' ? 0.42 : unit === 'm' ? 0.127 : 5}
-          step={unitStep(unit)}
-          value={dispGap}
-          onChange={(e) => setGap(fromDisplayUnit(parseFloat(e.target.value), unit))}
-          className="flex-1"
-          style={{ accentColor: 'var(--accent-blue)' }}
-        />
-        <input
           type="number"
           value={gapInput}
           min={0}
@@ -537,16 +528,10 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
 
       <FormRow label="Overlap" wide>
         <Toggle checked={allowOverlap} onChange={setAllowOverlap} />
-        <span className="text-xs" style={{ color: allowOverlap ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
-          {allowOverlap ? 'Enabled' : 'Disabled'}
-        </span>
       </FormRow>
 
-      <FormRow label="Out of bounds" wide>
+      <FormRow label="Snap to nearest" wide>
         <Toggle checked={snapToNearby} onChange={setSnapToNearby} />
-        <span className="text-xs" style={{ color: snapToNearby ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
-          {snapToNearby ? 'Snap to valid location' : 'Revert to original'}
-        </span>
       </FormRow>
 
       <FormRow label="Snap" wide>
@@ -563,7 +548,7 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
                 const v = parseInt(e.target.value, 10)
                 if (v >= 4) setGridSize(v)
               }}
-              className="w-14 px-2.5 py-1.5 rounded text-sm tabular-nums"
+              className="w-14 px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
               style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
             />
             <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>px</span>
@@ -573,16 +558,10 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
 
       <FormRow label="Grid" wide>
         <Toggle checked={showGrid} onChange={setShowGrid} />
-        <span className="text-xs" style={{ color: showGrid ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
-          {showGrid ? 'Visible' : 'Hidden'}
-        </span>
       </FormRow>
 
       <FormRow label="Rulers" wide>
         <Toggle checked={showRulers} onChange={setShowRulers} />
-        <span className="text-xs" style={{ color: showRulers ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
-          {showRulers ? 'Visible' : 'Hidden'}
-        </span>
       </FormRow>
 
       <FormRow label="Piece info" wide>
@@ -597,360 +576,6 @@ function LayoutSettings({ unit }: { unit: MeasureUnit }) {
           <option value="always">Always visible</option>
         </select>
       </FormRow>
-    </div>
-  )
-}
-
-// ── Piece properties ───────────────────────────────────────────
-
-function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
-  const imageCache = useStore((s) => s.imageCache)
-  const setPieceProps = useStore((s) => s.setPieceProps)
-  const setPieceMargin = useStore((s) => s.setPieceMargin)
-  const toggleLock = useStore((s) => s.toggleLock)
-  const rotatePiece = useStore((s) => s.rotatePiece)
-  const removePiece = useStore((s) => s.removePiece)
-  const setPieceImage = useStore((s) => s.setPieceImage)
-  const clearPieceImage = useStore((s) => s.clearPieceImage)
-  const reprocessPieceWithAI = useStore((s) => s.reprocessPieceWithAI)
-
-  const imgRef = useRef<HTMLInputElement>(null)
-  const thumbnail = piece.imageId ? imageCache[piece.imageId] : null
-  const suf = unitSuffix(unit)
-  const step = unitStep(unit)
-
-  const [nameLocal, setNameLocal] = useState(piece.name)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  
-  // AI Processing Modal state
-  const [imageProcessModalOpen, setImageProcessModalOpen] = useState(false)
-  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
-  const [reprocessMode, setReprocessMode] = useState(false)
-
-
-  useEffect(() => { setNameLocal(piece.name) }, [piece.name])
-  useEffect(() => {
-    if (!confirmDelete) return
-    const id = setTimeout(() => setConfirmDelete(false), 4000)
-    return () => clearTimeout(id)
-  }, [confirmDelete])
-
-  function commitName() {
-    if (nameLocal !== piece.name) setPieceProps(piece.id, { name: nameLocal })
-  }
-  
-  // AI Processing handlers
-  function handlePieceImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]
-    if (f) {
-      // Validate file size (5MB limit)
-      if (f.size > 5 * 1024 * 1024) {
-        toast.error('Image must be under 5MB')
-        e.target.value = ''
-        return
-      }
-      
-      // Validate file type
-      if (!f.type.startsWith('image/')) {
-        toast.error('Please select an image file')
-        e.target.value = ''
-        return
-      }
-      
-      // Open AI processing modal
-      setSelectedImageFile(f)
-      setReprocessMode(false)
-      setImageProcessModalOpen(true)
-    }
-    e.target.value = ''
-  }
-  
-  async function handleRetroactiveAIProcessing() {
-    try {
-      const file = await reprocessPieceWithAI(piece.id)
-      setSelectedImageFile(file)
-      setReprocessMode(true)
-      setImageProcessModalOpen(true)
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      toast.error(`Failed to load image: ${errorMessage}`)
-    }
-  }
-  
-  function handleImageProcessed(processedFile: File, aiData?: AIProcessingData) {
-    void setPieceImage(piece.id, processedFile, aiData).then(() => {
-      setImageProcessModalOpen(false)
-      setSelectedImageFile(null)
-      setReprocessMode(false)
-      
-      if (aiData) {
-        toast.success(`Image AI processed! Confidence: ${(aiData.confidence * 100).toFixed(0)}%`)
-      } else {
-        toast.success('Image uploaded successfully')
-      }
-    })
-  }
-  
-  function handleImageProcessCancel() {
-    setImageProcessModalOpen(false)
-    setSelectedImageFile(null)
-    setReprocessMode(false)
-  }
-
-  return (
-    <div className="flex flex-col">
-      {/* Identity */}
-      <div className="px-4 py-3 flex flex-col gap-2.5 section-block">
-        <div className="flex items-center gap-3">
-          {thumbnail ? (
-            <img src={thumbnail} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" style={{ border: '1px solid var(--border-subtle)' }} />
-          ) : (
-            <div className="w-10 h-10 rounded flex-shrink-0" style={{ background: piece.color, border: '1px solid var(--border-subtle)' }} />
-          )}
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>
-              {toDisplayUnit(piece.w, unit).toFixed(unit === 'in' ? 0 : 1)} × {toDisplayUnit(piece.h, unit).toFixed(unit === 'in' ? 0 : 1)} {suf}
-            </div>
-            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              {piece.locked ? 'Locked · ' : ''}{Math.round(((piece.rotation % 360) + 360) % 360)}°
-            </div>
-          </div>
-        </div>
-
-        <input
-          type="text"
-          value={nameLocal}
-          placeholder="Canvas name…"
-          onChange={(e) => setNameLocal(e.target.value)}
-          onBlur={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-subtle)'; commitName() }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') { commitName(); (e.target as HTMLInputElement).blur() }
-            if (e.key === 'Escape') { setNameLocal(piece.name); (e.target as HTMLInputElement).blur() }
-          }}
-          className="w-full px-2.5 py-1.5 rounded text-sm"
-          style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none' }}
-          onFocus={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--accent-blue)' }}
-        />
-      </div>
-
-      {/* Position */}
-      <div className="px-4 py-3 flex flex-col gap-3 section-block">
-        <FormRow label="X" wide>
-          <NumInput
-            value={toDisplayUnit(piece.x, unit)}
-            step={step}
-            unit={suf}
-            onChange={(v) => setPieceProps(piece.id, { x: fromDisplayUnit(v, unit) })}
-          />
-        </FormRow>
-        <FormRow label="Y" wide>
-          <NumInput
-            value={toDisplayUnit(piece.y, unit)}
-            step={step}
-            unit={suf}
-            onChange={(v) => setPieceProps(piece.id, { y: fromDisplayUnit(v, unit) })}
-          />
-        </FormRow>
-      </div>
-
-      {/* Rotation */}
-      <div className="px-4 py-3 flex flex-col gap-3 section-block">
-        <FormRow label="Rotation" wide>
-          {/* Give the input a real min-width so it doesn't get squeezed */}
-          <div style={{ flex: 1, minWidth: 80, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <input
-              type="number"
-              value={Math.round(((piece.rotation % 360) + 360) % 360)}
-              min={0}
-              max={359}
-              step={1}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value)
-                if (!isNaN(v)) setPieceProps(piece.id, { rotation: v })
-              }}
-              className="px-2.5 py-1.5 rounded text-sm tabular-nums"
-              style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none', minWidth: 72, flex: 1 }}
-            />
-            <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>°</span>
-          </div>
-          <button
-            onClick={() => rotatePiece(piece.id, -90)}
-            disabled={piece.locked}
-            title="Rotate 90° CCW"
-            className="flex items-center justify-center px-3 py-1.5 rounded text-sm transition-all disabled:opacity-30"
-            style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', flexShrink: 0 }}
-          >
-            <FontAwesomeIcon icon={faRotateLeft} />
-          </button>
-          <button
-            onClick={() => rotatePiece(piece.id, 90)}
-            disabled={piece.locked}
-            title="Rotate 90° CW"
-            className="flex items-center justify-center px-3 py-1.5 rounded text-sm transition-all disabled:opacity-30"
-            style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', flexShrink: 0 }}
-          >
-            <FontAwesomeIcon icon={faRotateRight} />
-          </button>
-        </FormRow>
-      </div>
-
-      {/* Margin */}
-      <div className="px-4 py-3 flex flex-col gap-2.5 section-block">
-        <FormRow label="Margin" wide>
-          <input
-            type="range"
-            min={0}
-            max={unit === 'cm' ? 10.16 : unit === 'ft' ? 0.333 : 4}
-            step={step}
-            value={toDisplayUnit(piece.margin, unit)}
-            onChange={(e) => setPieceMargin(piece.id, fromDisplayUnit(parseFloat(e.target.value), unit))}
-            className="flex-1"
-            style={{ accentColor: 'var(--accent-orange)' }}
-          />
-          <span className="text-xs tabular-nums w-12 text-right flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
-            {toDisplayUnit(piece.margin, unit).toFixed(unit === 'in' ? 2 : 1)}{suf}
-          </span>
-        </FormRow>
-      </div>
-
-      {/* Photo */}
-      <div className="px-4 py-3 flex flex-col gap-2.5 section-block">
-        <FormRow label="Photo" wide>
-          {thumbnail ? (
-            <div className="flex items-center gap-2 flex-1">
-              <button
-                onClick={() => imgRef.current?.click()}
-                className="flex-1 px-2.5 py-1.5 rounded text-sm transition-colors truncate flex items-center gap-1.5"
-                style={{
-                  background: 'rgba(59,130,246,0.15)',
-                  border: '1px solid rgba(59,130,246,0.4)',
-                  color: '#93c5fd',
-                }}
-              >
-                <FontAwesomeIcon icon={faImage} className="text-xs" />
-                Attached
-              </button>
-              
-              {/* AI Status Badge */}
-              {piece.aiProcessed ? (
-                <span 
-                  className="px-2 py-1 rounded text-xs font-medium flex items-center gap-1 flex-shrink-0"
-                  style={{
-                    background: 'rgba(59, 130, 246, 0.15)',
-                    color: '#93c5fd',
-                    border: '1px solid rgba(59, 130, 246, 0.3)',
-                  }}
-                  title={`AI processed on ${new Date(piece.aiProcessingData?.processedAt || 0).toLocaleDateString()}\nRotation: ${piece.aiProcessingData?.rotation.toFixed(1)}°\nConfidence: ${((piece.aiProcessingData?.confidence || 0) * 100).toFixed(0)}%`}
-                >
-                  <FontAwesomeIcon icon={faMicrochip} /> AI
-                </span>
-              ) : (
-                <span 
-                  className="px-2 py-1 rounded text-xs font-medium flex items-center gap-1 flex-shrink-0"
-                  style={{
-                    background: 'var(--bg-input)',
-                    color: 'var(--text-muted)',
-                    border: '1px solid var(--border-subtle)',
-                  }}
-                  title="Not AI processed"
-                >
-                  <FontAwesomeIcon icon={faMicrochip} style={{ opacity: 0.5 }} />
-                </span>
-              )}
-              
-              <button
-                onClick={() => void clearPieceImage(piece.id)}
-                className="w-8 h-7 rounded flex items-center justify-center text-xs flex-shrink-0"
-                style={{ color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
-              >
-                <FontAwesomeIcon icon={faXmark} />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => imgRef.current?.click()}
-              className="flex-1 px-2.5 py-1.5 rounded text-sm transition-colors truncate flex items-center gap-1.5"
-              style={{
-                background: 'var(--bg-input)',
-                border: '1px solid var(--border-subtle)',
-                color: 'var(--text-muted)',
-              }}
-            >
-              <FontAwesomeIcon icon={faImage} className="text-xs" />
-              Add photo
-            </button>
-          )}
-          <input
-            ref={imgRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handlePieceImageSelect}
-          />
-        </FormRow>
-        
-        {/* Retroactive AI Processing */}
-        {thumbnail && !piece.aiProcessed && (
-          <div 
-            className="mt-2 p-3 rounded"
-            style={{
-              background: 'rgba(59, 130, 246, 0.08)',
-              border: '1px solid rgba(59, 130, 246, 0.2)',
-            }}
-          >
-            <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
-              <FontAwesomeIcon icon={faMicrochip} /> This image hasn&apos;t been AI processed
-            </p>
-            <button
-              onClick={handleRetroactiveAIProcessing}
-              className="w-full px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
-              style={{
-                background: 'var(--accent-blue)',
-                color: 'white',
-              }}
-            >
-              <FontAwesomeIcon icon={faMicrochip} /> Process with AI Now
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Actions */}
-      <div className="px-4 py-3 flex flex-col gap-2">
-        <div className="flex gap-2">
-          <PanelBtn onClick={() => toggleLock(piece.id)} title={piece.locked ? 'Unlock' : 'Lock'}>
-            <FontAwesomeIcon icon={piece.locked ? faLockOpen : faLock} />
-            {piece.locked ? 'Unlock' : 'Lock'}
-          </PanelBtn>
-        </div>
-
-        {confirmDelete ? (
-          <div className="flex items-center gap-2">
-            <span className="text-xs flex-1" style={{ color: 'var(--text-muted)' }}>Remove this item?</span>
-            <PanelBtn variant="warning" onClick={() => { setConfirmDelete(false); removePiece(piece.id) }}>
-              <FontAwesomeIcon icon={faCheck} /> Yes
-            </PanelBtn>
-            <PanelBtn onClick={() => setConfirmDelete(false)}>
-              <FontAwesomeIcon icon={faXmark} /> No
-            </PanelBtn>
-          </div>
-        ) : (
-          <PanelBtn variant="danger" onClick={() => setConfirmDelete(true)}>
-            <FontAwesomeIcon icon={faTrash} /> Remove
-          </PanelBtn>
-        )}
-      </div>
-      
-      {/* AI Image Process Modal */}
-      {imageProcessModalOpen && selectedImageFile && (
-        <ImageProcessModal
-          file={selectedImageFile}
-          onCancel={handleImageProcessCancel}
-          onConfirm={handleImageProcessed}
-          mode={reprocessMode ? 'reprocess' : 'upload'}
-          existingAIData={piece.aiProcessingData}
-        />
-      )}
     </div>
   )
 }
@@ -1268,15 +893,12 @@ type PanelTab = 'properties' | 'settings'
 
 export function RightPanel() {
   const unit = useStore((s) => s.unit)
-  const selectedId = useStore((s) => s.selectedId)
-  const selectedPiece = useStore((s) => s.pieces.find((p) => p.id === s.selectedId))
   const [tab, setTab] = useState<PanelTab>('properties')
 
   return (
     <aside
-      className="flex-shrink-0 flex flex-col"
+      className="flex-shrink-0 flex flex-col h-full"
       style={{
-        width: 320,
         background: 'var(--bg-panel)',
         borderLeft: '1px solid var(--border-subtle)',
       }}
@@ -1303,8 +925,8 @@ export function RightPanel() {
         })}
       </div>
 
-      {/* Tab content */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Tab content - flex-1 allows it to grow and push footer down */}
+      <div className="flex-1 overflow-y-auto min-h-0">
         {tab === 'properties' && (
           <>
             <SectionHeader sub="Dimensions & background">Wall</SectionHeader>
@@ -1313,31 +935,20 @@ export function RightPanel() {
             <SectionHeader sub="Spacing, snap & behavior">Layout</SectionHeader>
             <LayoutSettings unit={unit} />
 
-            {selectedPiece ? (
-              <>
-                <SectionHeader sub={selectedPiece.name || `${selectedPiece.w} × ${selectedPiece.h} in`}>
-                  Selected Item
-                </SectionHeader>
-                <PieceProperties key={selectedId} piece={selectedPiece} unit={unit} />
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Click an item on the wall to edit its properties
-                </p>
-              </div>
-            )}
-
+            {/* History Section - below layout properties */}
+            <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: '1rem' }}>
+              <HistorySection />
+            </div>
           </>
         )}
 
         {tab === 'settings' && <SettingsTab />}
       </div>
 
-      {/* Error Log - Always visible at bottom */}
+      {/* Error Log - flex-shrink-0 keeps it from shrinking */}
       <ErrorLogSection />
 
-      {/* Footer */}
+      {/* Footer - flex-shrink-0 pins it to bottom */}
       <div
         className="flex-shrink-0 px-4 py-3 text-center text-xs"
         style={{
@@ -1347,7 +958,7 @@ export function RightPanel() {
         }}
       >
         <div className="mb-1">
-          © {new Date().getFullYear()}{' '}
+          © 2024-2026{' '}
           <a
             href="https://nateshoffner.com"
             target="_blank"
@@ -1360,9 +971,20 @@ export function RightPanel() {
           </a>
         </div>
         <div>
-          All rights reserved •{' '}
           <a
-            href={`https://github.com/NateShoffner/gallery-wall-planner/commit/${process.env.GIT_HASH || 'unknown'}`}
+            href="https://nateshoffner.com/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-blue)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
+          >
+            Privacy
+          </a>
+          {' • '}
+          Build:{' '}
+          <a
+            href={`https://github.com/NateShoffner/gallery-wall-planner/commit/${process.env.GIT_HASH}`}
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontFamily: 'monospace' }}
@@ -1370,7 +992,7 @@ export function RightPanel() {
             onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
             title="View commit on GitHub"
           >
-            build: {process.env.GIT_HASH || 'unknown'}
+            {process.env.GIT_HASH || 'unknown'}
           </a>
         </div>
       </div>

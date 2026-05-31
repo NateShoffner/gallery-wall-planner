@@ -18,6 +18,7 @@ interface CanvasPieceProps {
   onPieceMousedown: (e: React.MouseEvent, id: string) => void
   onHandleMousedown: (e: React.MouseEvent, id: string) => void
   onResizeMousedown: (e: React.MouseEvent, id: string, handle: ResizeHandle) => void
+  onContextMenu?: (e: React.MouseEvent, id: string) => void
 }
 
 export const CanvasPiece = memo(function CanvasPiece({
@@ -31,6 +32,7 @@ export const CanvasPiece = memo(function CanvasPiece({
   onPieceMousedown,
   onHandleMousedown,
   onResizeMousedown,
+  onContextMenu,
 }: CanvasPieceProps) {
   const [isHovered, setIsHovered] = useState(false)
   const oob = checkOob(piece.x, piece.y, piece.w, piece.h, piece.rotation, wall)
@@ -55,7 +57,15 @@ export const CanvasPiece = memo(function CanvasPiece({
   const displayH = toDisplayUnit(piece.h, unit)
   const displayX = toDisplayUnit(piece.x, unit)
   const displayY = toDisplayUnit(piece.y, unit)
-  const infoText = `${piece.name || 'Untitled'}\n${displayW.toFixed(unit === 'in' ? 1 : 0)}${suf} × ${displayH.toFixed(unit === 'in' ? 1 : 0)}${suf}\n@(${displayX.toFixed(0)}, ${displayY.toFixed(0)})${suf}\n${piece.rotation}°`
+  
+  // Calculate margin bounding box dimensions
+  const displayMarginW = toDisplayUnit(piece.w + piece.margin * 2, unit)
+  const displayMarginH = toDisplayUnit(piece.h + piece.margin * 2, unit)
+  
+  // Format dimensions: show 0 decimals if it's a whole number, otherwise 1 decimal
+  const formatDimension = (value: number) => {
+    return value % 1 === 0 ? value.toFixed(0) : value.toFixed(1)
+  }
 
   return (
     <div
@@ -78,19 +88,47 @@ export const CanvasPiece = memo(function CanvasPiece({
       onMouseDown={(e) => onPieceMousedown(e, piece.id)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        if (onContextMenu) {
+          onContextMenu(e, piece.id)
+        }
+      }}
     >
       {/* Margin indicator */}
       {selected && piece.margin > 0 && (
-        <div
-          className="absolute pointer-events-none rounded"
-          style={{
-            left: -marginPx,
-            top: -marginPx,
-            width: piece.w * scale + marginPx * 2,
-            height: piece.h * scale + marginPx * 2,
-            border: '1.5px dashed rgba(251,146,60,0.45)',
-          }}
-        />
+        <>
+          <div
+            className="absolute pointer-events-none rounded"
+            style={{
+              left: -marginPx,
+              top: -marginPx,
+              width: piece.w * scale + marginPx * 2,
+              height: piece.h * scale + marginPx * 2,
+              border: '1.5px dashed rgba(251,146,60,0.45)',
+            }}
+          />
+          {/* Margin size label */}
+          {shouldShowInfo && (
+            <div
+              className="absolute pointer-events-none text-xs font-mono px-2 py-1 rounded shadow-lg"
+              style={{
+                left: -marginPx,
+                bottom: -marginPx - 28,
+                transform: `rotate(${-piece.rotation}deg)`,
+                transformOrigin: 'top left',
+                background: 'rgba(251, 146, 60, 0.9)',
+                color: '#fff',
+                zIndex: 100,
+                backdropFilter: 'blur(4px)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {formatDimension(displayMarginW)}{suf} × {formatDimension(displayMarginH)}{suf}
+            </div>
+          )}
+        </>
       )}
 
       {/* Label — counter-rotated so text stays upright */}
@@ -131,25 +169,64 @@ export const CanvasPiece = memo(function CanvasPiece({
         />
       ))}
       
-      {/* Info tooltip */}
+      {/* Info tooltip - repositioned with coordinates top-left, dimensions center, rotation top-right */}
       {shouldShowInfo && (
-        <div
-          className="absolute pointer-events-none text-xs font-mono leading-relaxed whitespace-pre-line px-2 py-1.5 rounded shadow-lg"
-          style={{
-            left: '50%',
-            top: '50%',
-            transform: `translate(-50%, -50%) rotate(${-piece.rotation}deg)`,
-            background: 'rgba(0, 0, 0, 0.85)',
-            color: '#fff',
-            zIndex: 100,
-            backdropFilter: 'blur(4px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            maxWidth: '200px',
-            textAlign: 'center',
-          }}
-        >
-          {infoText}
-        </div>
+        <>
+          {/* Coordinates - top left */}
+          <div
+            className="absolute pointer-events-none text-xs font-mono px-2 py-1 rounded shadow-lg"
+            style={{
+              left: 4,
+              top: 4,
+              transform: `rotate(${-piece.rotation}deg)`,
+              transformOrigin: 'top left',
+              background: 'rgba(0, 0, 0, 0.85)',
+              color: '#fff',
+              zIndex: 100,
+              backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {formatDimension(displayX)}{suf} × {formatDimension(displayY)}{suf}
+          </div>
+
+          {/* Dimensions - center */}
+          <div
+            className="absolute pointer-events-none text-xs font-mono px-2 py-1 rounded shadow-lg"
+            style={{
+              left: '50%',
+              top: '50%',
+              transform: `translate(-50%, -50%) rotate(${-piece.rotation}deg)`,
+              background: 'rgba(0, 0, 0, 0.85)',
+              color: '#fff',
+              zIndex: 100,
+              backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {formatDimension(displayW)}{suf} × {formatDimension(displayH)}{suf}
+          </div>
+
+          {/* Rotation - top right */}
+          <div
+            className="absolute pointer-events-none text-xs font-mono px-2 py-1 rounded shadow-lg"
+            style={{
+              right: 4,
+              top: 4,
+              transform: `rotate(${-piece.rotation}deg)`,
+              transformOrigin: 'top right',
+              background: 'rgba(0, 0, 0, 0.85)',
+              color: '#fff',
+              zIndex: 100,
+              backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+            }}
+          >
+            {piece.rotation}°
+          </div>
+        </>
       )}
     </div>
   )

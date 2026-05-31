@@ -267,14 +267,25 @@ export const useStore = create<StoreState>()(
       },
 
       removePiece(id) {
-        const piece = get().pieces.find((p) => p.id === id)
+        const state = get()
+        const piece = state.pieces.find((p) => p.id === id)
         const pieceName = piece?.name || `${piece?.w} × ${piece?.h} in`
-        get().pushHistory(`Remove ${pieceName}`)
-        if (piece?.imageId) void deleteImage(piece.imageId)
+        state.pushHistory(`Remove ${pieceName}`)
+        
+        // Only delete image if no other pieces are using it
+        if (piece?.imageId) {
+          const otherPiecesUsingImage = state.pieces.filter(
+            (p) => p.id !== id && p.imageId === piece.imageId
+          ).length
+          if (otherPiecesUsingImage === 0) {
+            void deleteImage(piece.imageId)
+          }
+        }
+        
         set((s) => ({
           pieces: s.pieces.filter((p) => p.id !== id),
           selectedId: s.selectedId === id ? null : s.selectedId,
-          imageCache: piece?.imageId
+          imageCache: piece?.imageId && state.pieces.filter((p) => p.id !== id && p.imageId === piece.imageId).length === 0
             ? Object.fromEntries(Object.entries(s.imageCache).filter(([k]) => k !== piece.imageId))
             : s.imageCache,
         }))

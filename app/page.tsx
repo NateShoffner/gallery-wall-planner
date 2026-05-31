@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '@/store/useStore'
 import { Toolbar } from '@/components/Toolbar'
-import { Sidebar } from '@/components/Sidebar'
+import { LeftPanel } from '@/components/LeftPanel'
 import { WallCanvas } from '@/components/WallCanvas'
 import { RightPanel } from '@/components/RightPanel'
+import { ResizablePanel } from '@/components/ResizablePanel'
 
 export type ZoomMode = 'fit' | number
 
@@ -51,14 +52,36 @@ export default function HomePage() {
         setPreviewMode={setPreviewMode}
       />
       <div className="flex flex-1 min-h-0">
-        {!previewMode && <Sidebar />}
+        {!previewMode && (
+          <ResizablePanel
+            side="left"
+            defaultWidth={320}
+            minWidth={240}
+            maxWidth={600}
+            storageKey="leftPanelWidth"
+            className="flex flex-col"
+          >
+            <LeftPanel />
+          </ResizablePanel>
+        )}
         <WallCanvas 
           zoomMode={zoomMode} 
           setZoomMode={setZoomMode}
           showLegend={showRulers}
           previewMode={previewMode}
         />
-        {!previewMode && <RightPanel />}
+        {!previewMode && (
+          <ResizablePanel
+            side="right"
+            defaultWidth={320}
+            minWidth={240}
+            maxWidth={600}
+            storageKey="rightPanelWidth"
+            className="flex flex-col"
+          >
+            <RightPanel />
+          </ResizablePanel>
+        )}
       </div>
     </div>
   )

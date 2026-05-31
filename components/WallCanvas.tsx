@@ -4,9 +4,24 @@ import { useRef, useEffect, useCallback, useState } from 'react'
 import { useStore } from '@/store/useStore'
 import { CanvasPiece } from '@/components/CanvasPiece'
 import { Ruler } from '@/components/Ruler'
+import { ContextMenu, type ContextMenuItem } from '@/components/ContextMenu'
 import { SCALE } from '@/lib/constants'
 import { snapToGrid, snapRotation, checkOob, snapToNearbyValid, checkConflict, applyResize } from '@/lib/utils'
 import type { Piece, ResizeHandle } from '@/types'
+import {
+  faTrash,
+  faCopy,
+  faLock,
+  faLockOpen,
+  faArrowUp,
+  faArrowDown,
+  faRotateRight,
+  faRotateLeft,
+  faArrowsLeftRight,
+  faArrowsUpDown,
+  faUndo,
+  faImage,
+} from '@fortawesome/free-solid-svg-icons'
 
 const RULER_SIZE = 26  // Updated to match Ruler.tsx
 const PAD_SIDE = RULER_SIZE + 8  // Reduced from 12 to 8 for tighter spacing
@@ -98,6 +113,12 @@ export function WallCanvas({
 
   const piecesRef = useRef<Piece[]>(pieces)
   const interactionRef = useRef({ snapEnabled, gridSize, wall, displayScale: SCALE, allowOverlap })
+
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; pieceId: string } | null>(null)
+  const [alignmentGuides, setAlignmentGuides] = useState<{
+    vertical: number[]
+    horizontal: number[]
+  }>({ vertical: [], horizontal: [] })
 
   useEffect(() => { piecesRef.current = pieces })
 
@@ -271,6 +292,79 @@ export function WallCanvas({
     [],
   )
 
+  // ── Alignment detection ─────────────────────────────────────
+
+  const detectAlignment = useCallback((
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    pieceId: string,
+    threshold: number = 3, // pixels tolerance
+  ) => {
+    const verticalAlignments: Array<{ position: number; distance: number }> = []
+    const horizontalAlignments: Array<{ position: number; distance: number }> = []
+    
+    const currentLeft = x
+    const currentRight = x + w
+    const currentCenterX = x + w / 2
+    const currentTop = y
+    const currentBottom = y + h
+    const currentCenterY = y + h / 2
+
+    // Check alignment with other pieces
+    for (const other of piecesRef.current) {
+      if (other.id === pieceId) continue
+      
+      const otherLeft = other.x
+      const otherRight = other.x + other.w
+      const otherCenterX = other.x + other.w / 2
+      const otherTop = other.y
+      const otherBottom = other.y + other.h
+      const otherCenterY = other.y + other.h / 2
+
+      // Vertical alignment (X axis) - prioritize edge and center alignments
+      const vAlignments = [
+        { pos: otherLeft, dist: Math.abs(currentLeft - otherLeft), type: 'edge' },
+        { pos: otherRight, dist: Math.abs(currentRight - otherRight), type: 'edge' },
+        { pos: otherCenterX, dist: Math.abs(currentCenterX - otherCenterX), type: 'center' },
+      ]
+      
+      for (const align of vAlignments) {
+        if (align.dist < threshold) {
+          verticalAlignments.push({ position: align.pos, distance: align.dist })
+        }
+      }
+
+      // Horizontal alignment (Y axis) - prioritize edge and center alignments
+      const hAlignments = [
+        { pos: otherTop, dist: Math.abs(currentTop - otherTop), type: 'edge' },
+        { pos: otherBottom, dist: Math.abs(currentBottom - otherBottom), type: 'edge' },
+        { pos: otherCenterY, dist: Math.abs(currentCenterY - otherCenterY), type: 'center' },
+      ]
+      
+      for (const align of hAlignments) {
+        if (align.dist < threshold) {
+          horizontalAlignments.push({ position: align.pos, distance: align.dist })
+        }
+      }
+    }
+
+    // Sort by distance and take only the closest alignment for each axis
+    const closestVertical = verticalAlignments.length > 0
+      ? [verticalAlignments.sort((a, b) => a.distance - b.distance)[0].position]
+      : []
+    
+    const closestHorizontal = horizontalAlignments.length > 0
+      ? [horizontalAlignments.sort((a, b) => a.distance - b.distance)[0].position]
+      : []
+
+    return {
+      vertical: closestVertical,
+      horizontal: closestHorizontal,
+    }
+  }, [])
+
   // ── Global mouse events ─────────────────────────────────────
 
   useEffect(() => {
@@ -289,6 +383,10 @@ export function WallCanvas({
         drag.currentX = newX
         drag.currentY = newY
 
+        // Detect alignment guides
+        const guides = detectAlignment(newX, newY, drag.pieceW, drag.pieceH, drag.pieceId)
+        setAlignmentGuides(guides)
+
         const el = getPieceEl(wallEl, drag.pieceId)
         if (el) {
           el.style.left = `${newX * ds}px`
@@ -302,6 +400,9 @@ export function WallCanvas({
           el.classList.toggle('oob', oob)
           el.classList.toggle('conflict', conflict && !oob)
         }
+      } else {
+        // Clear guides when not dragging
+        setAlignmentGuides({ vertical: [], horizontal: [] })
       }
 
       if (rotateRef.current) {
@@ -367,6 +468,9 @@ export function WallCanvas({
     function handleMouseUp() {
       const { displayScale: ds, allowOverlap } = interactionRef.current
       const wallEl = wallRef.current
+
+      // Clear alignment guides
+      setAlignmentGuides({ vertical: [], horizontal: [] })
 
       if (dragRef.current) {
         const drag = dragRef.current
@@ -495,13 +599,197 @@ export function WallCanvas({
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [updatePiece, resizePiece, pushHistory])
+  }, [updatePiece, resizePiece, pushHistory, unit, detectAlignment])
 
   // ── Render ──────────────────────────────────────────────────
 
   const wallW = wall.width * displayScale
   const wallH = wall.height * displayScale
   const wallImageUrl = wall.imageId ? imageCache[wall.imageId] : undefined
+
+  // ── Context Menu ────────────────────────────────────────────
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, pieceId: string) => {
+    setContextMenu({ x: e.clientX, y: e.clientY, pieceId })
+    selectPiece(pieceId)
+  }, [selectPiece])
+
+  const getContextMenuItems = useCallback((pieceId: string): ContextMenuItem[] => {
+    const piece = pieces.find((p) => p.id === pieceId)
+    if (!piece) return []
+
+    const removePiece = useStore.getState().removePiece
+    const toggleLock = useStore.getState().toggleLock
+    const rotatePiece = useStore.getState().rotatePiece
+    const updatePiece = useStore.getState().updatePiece
+    const addPiece = useStore.getState().addPiece
+    
+    // Duplicate: create new piece with offset position
+    const handleDuplicate = () => {
+      const state = useStore.getState()
+      const newPiece: Piece = {
+        ...piece,
+        id: `p${state._nextId}`,
+        x: piece.x + 12,
+        y: piece.y + 12,
+      }
+      
+      // Update store with new piece and increment ID counter
+      useStore.setState((s) => ({
+        pieces: [...s.pieces, newPiece],
+        _nextId: s._nextId + 1,
+      }))
+      
+      pushHistory('Duplicate piece')
+      selectPiece(newPiece.id)
+    }
+
+    // Bring to front: move to end of array (highest z-index)
+    const handleBringToFront = () => {
+      useStore.setState((s) => {
+        const idx = s.pieces.findIndex((p) => p.id === pieceId)
+        if (idx === -1 || idx === s.pieces.length - 1) return s
+        
+        const newPieces = [...s.pieces]
+        const [removed] = newPieces.splice(idx, 1)
+        newPieces.push(removed)
+        return { pieces: newPieces }
+      })
+      pushHistory('Bring to front')
+    }
+
+    // Send to back: move to start of array (lowest z-index)
+    const handleSendToBack = () => {
+      useStore.setState((s) => {
+        const idx = s.pieces.findIndex((p) => p.id === pieceId)
+        if (idx === -1 || idx === 0) return s
+        
+        const newPieces = [...s.pieces]
+        const [removed] = newPieces.splice(idx, 1)
+        newPieces.unshift(removed)
+        return { pieces: newPieces }
+      })
+      pushHistory('Send to back')
+    }
+
+    // Flip horizontal: mirror the piece (not yet implemented in store, will use rotation as placeholder)
+    const handleFlipHorizontal = () => {
+      // For now, we'll need to add this to the store later
+      // Placeholder: rotate 180 degrees as visual feedback
+      rotatePiece(pieceId, 180)
+      pushHistory('Flip horizontal')
+    }
+
+    // Flip vertical: mirror the piece
+    const handleFlipVertical = () => {
+      // Placeholder: same as horizontal for now
+      rotatePiece(pieceId, 180)
+      pushHistory('Flip vertical')
+    }
+
+    // Add/Edit Image: trigger file input
+    const handleAddEditImage = () => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = 'image/*'
+      input.onchange = async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0]
+        if (file) {
+          const setPieceImage = useStore.getState().setPieceImage
+          await setPieceImage(pieceId, file)
+        }
+      }
+      input.click()
+    }
+
+    return [
+      {
+        label: piece.imageId ? 'Edit Image' : 'Add Image',
+        icon: faImage,
+        onClick: handleAddEditImage,
+      },
+      { separator: true, label: '', onClick: () => {} },
+      {
+        label: 'Delete',
+        icon: faTrash,
+        onClick: () => {
+          removePiece(pieceId)
+          pushHistory('Delete piece')
+        },
+        danger: true,
+      },
+      {
+        label: 'Duplicate',
+        icon: faCopy,
+        onClick: handleDuplicate,
+      },
+      { separator: true, label: '', onClick: () => {} },
+      {
+        label: piece.locked ? 'Unlock' : 'Lock',
+        icon: piece.locked ? faLockOpen : faLock,
+        onClick: () => {
+          toggleLock(pieceId)
+          pushHistory(piece.locked ? 'Unlock piece' : 'Lock piece')
+        },
+      },
+      { separator: true, label: '', onClick: () => {} },
+      {
+        label: 'Bring to Front',
+        icon: faArrowUp,
+        onClick: handleBringToFront,
+      },
+      {
+        label: 'Send to Back',
+        icon: faArrowDown,
+        onClick: handleSendToBack,
+      },
+      { separator: true, label: '', onClick: () => {} },
+      {
+        label: 'Rotate 90° CW',
+        icon: faRotateRight,
+        onClick: () => {
+          rotatePiece(pieceId, 90)
+          pushHistory('Rotate piece')
+        },
+      },
+      {
+        label: 'Rotate 90° CCW',
+        icon: faRotateLeft,
+        onClick: () => {
+          rotatePiece(pieceId, -90)
+          pushHistory('Rotate piece')
+        },
+      },
+      {
+        label: 'Rotate 180°',
+        icon: faRotateRight,
+        onClick: () => {
+          rotatePiece(pieceId, 180)
+          pushHistory('Rotate piece')
+        },
+      },
+      {
+        label: 'Reset Rotation',
+        icon: faUndo,
+        onClick: () => {
+          updatePiece(pieceId, { rotation: 0 })
+          pushHistory('Reset rotation')
+        },
+        disabled: piece.rotation === 0,
+      },
+      { separator: true, label: '', onClick: () => {} },
+      {
+        label: 'Flip Horizontal',
+        icon: faArrowsLeftRight,
+        onClick: handleFlipHorizontal,
+      },
+      {
+        label: 'Flip Vertical',
+        icon: faArrowsUpDown,
+        onClick: handleFlipVertical,
+      },
+    ]
+  }, [pieces, pushHistory, selectPiece])
 
   // When a workArea is set, position the full image so that the selected region
   // aligns exactly with the workspace, and the rest of the photo extends beyond.
@@ -610,6 +898,42 @@ export function WallCanvas({
             />
           )}
 
+          {/* Alignment guide lines */}
+          {!previewMode && (alignmentGuides.vertical.length > 0 || alignmentGuides.horizontal.length > 0) && (
+            <>
+              {alignmentGuides.vertical.map((x, i) => (
+                <div
+                  key={`v-${i}`}
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: `${x * displayScale}px`,
+                    top: 0,
+                    width: '1px',
+                    height: '100%',
+                    backgroundColor: '#3b82f6',
+                    boxShadow: '0 0 4px rgba(59, 130, 246, 0.5)',
+                    zIndex: 999,
+                  }}
+                />
+              ))}
+              {alignmentGuides.horizontal.map((y, i) => (
+                <div
+                  key={`h-${i}`}
+                  className="absolute pointer-events-none"
+                  style={{
+                    top: `${y * displayScale}px`,
+                    left: 0,
+                    height: '1px',
+                    width: '100%',
+                    backgroundColor: '#3b82f6',
+                    boxShadow: '0 0 4px rgba(59, 130, 246, 0.5)',
+                    zIndex: 999,
+                  }}
+                />
+              ))}
+            </>
+          )}
+
           {/* Pieces container - offset in preview mode to align with full image */}
           <div
             style={{
@@ -633,11 +957,22 @@ export function WallCanvas({
                 onPieceMousedown={handlePieceMousedown}
                 onHandleMousedown={handleHandleMousedown}
                 onResizeMousedown={handleResizeMousedown}
+                onContextMenu={handleContextMenu}
               />
             ))}
           </div>
         </div>
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={getContextMenuItems(contextMenu.pieceId)}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   )
 }
