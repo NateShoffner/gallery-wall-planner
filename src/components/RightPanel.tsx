@@ -3,13 +3,14 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faLock, faLockOpen, faTrash, faImage, faRotateLeft, faRotateRight,
   faGear, faBorderAll, faSun, faMoon, faXmark, faCheck,
-  faRulerCombined,
+  faRulerCombined, faEyeSlash,
 } from '@fortawesome/free-solid-svg-icons'
 import { useStore } from '../store/useStore'
 import { toDisplayUnit, fromDisplayUnit, unitSuffix, unitStep } from '../lib/utils'
 import { PATTERN_LABELS } from '../lib/constants'
 import type { Piece, MeasureUnit, ClusterPattern, WorkArea } from '../types'
 import { WallAreaModal } from './WallAreaModal'
+import { ErrorLogSection } from './ErrorLogSection'
 
 // ── SVG Pattern Previews ────────────────────────────────────────
 
@@ -823,6 +824,9 @@ function SettingsTab() {
   const setEnabledPatterns = useStore((s) => s.setEnabledPatterns)
   const clearAll = useStore((s) => s.clearAll)
   const resetEverything = useStore((s) => s.resetEverything)
+  const suppressedErrors = useStore((s) => s.suppressedErrors)
+  const unsuppressErrorPattern = useStore((s) => s.unsuppressErrorPattern)
+  const clearSuppressedErrors = useStore((s) => s.clearSuppressedErrors)
 
   const [pendingAction, setPendingAction] = useState<'clear' | 'reset' | null>(null)
 
@@ -941,6 +945,89 @@ function SettingsTab() {
           </button>
         </div>
       </div>
+
+      {/* Suppressed Errors Section */}
+      {suppressedErrors.size > 0 && (
+        <>
+          <SectionHeader sub="Manage suppressed error patterns">Suppressed Errors</SectionHeader>
+          <div className="px-4 py-3 section-block flex flex-col gap-2">
+            <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
+              These error patterns are currently suppressed and won't be logged.
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {Array.from(suppressedErrors).map((pattern) => {
+                const [type, ...messageParts] = pattern.split(':')
+                const message = messageParts.join(':')
+                
+                return (
+                  <div
+                    key={pattern}
+                    className="flex items-start gap-2 px-2.5 py-2 rounded text-[11px]"
+                    style={{
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    <FontAwesomeIcon
+                      icon={faEyeSlash}
+                      style={{
+                        fontSize: 10,
+                        color: 'var(--text-muted)',
+                        marginTop: 2,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className="font-medium mb-0.5"
+                        style={{ color: 'var(--text-secondary)' }}
+                      >
+                        {type}
+                      </div>
+                      <div
+                        className="text-[10px] leading-snug"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        {message}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => unsuppressErrorPattern(pattern)}
+                      className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded text-[10px] transition-colors"
+                      style={{
+                        color: 'var(--text-muted)',
+                        opacity: 0.6,
+                      }}
+                      title="Unsuppress"
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.opacity = '1'
+                        e.currentTarget.style.background = 'var(--bg-hover)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.opacity = '0.6'
+                        e.currentTarget.style.background = 'transparent'
+                      }}
+                    >
+                      <FontAwesomeIcon icon={faXmark} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+            <button
+              onClick={clearSuppressedErrors}
+              className="py-1.5 rounded text-xs transition-colors mt-1"
+              style={{
+                background: 'var(--bg-elevated)',
+                color: 'var(--text-muted)',
+                border: '1px solid var(--border-subtle)',
+              }}
+            >
+              Clear All Suppressions
+            </button>
+          </div>
+        </>
+      )}
 
       <SectionHeader sub="Remove items or reset everything">Danger Zone</SectionHeader>
       <div className="px-4 py-3 section-block flex flex-col gap-2">
@@ -1102,6 +1189,9 @@ export function RightPanel() {
 
         {tab === 'settings' && <SettingsTab />}
       </div>
+
+      {/* Error Log - Always visible at bottom */}
+      <ErrorLogSection />
 
       {/* Footer */}
       <div

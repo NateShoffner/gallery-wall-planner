@@ -57,3 +57,20 @@ export type LayoutExport = {
   pieces: Piece[]
   images: Record<string, string>
 }
+
+export type ErrorType = 'pattern' | 'overlap' | 'feasibility' | 'general'
+
+export interface ErrorLogEntry {
+  id: string
+  timestamp: number
+  type: ErrorType
+  message: string
+  context?: {
+    patternName?: string
+    pieceCount?: number
+    wallSize?: { width: number; height: number }
+    gap?: number
+    allowOverlap?: boolean
+  }
+  dismissed?: boolean
+}

@@ -12,7 +12,7 @@ import {
 import {
   storeImage, getAllImages, deleteImage, clearAllImages, fileToDataUrl,
 } from '../lib/imageStore'
-import type { Piece, Wall, WorkArea, HistorySnapshot, LayoutExport, MeasureUnit, ClusterPattern } from '../types'
+import type { Piece, Wall, WorkArea, HistorySnapshot, LayoutExport, MeasureUnit, ClusterPattern, ErrorLogEntry } from '../types'
 
 const MAX_HISTORY = 50
 
@@ -44,6 +44,8 @@ interface StoreState {
   undoStack: HistorySnapshot[]
   redoStack: HistorySnapshot[]
   imageCache: Record<string, string>
+  errorLog: ErrorLogEntry[]
+  suppressedErrors: Set<string>
 
   // ── Layout actions ────────────────────────────────────────
   setWall(w: number, h: number): void
@@ -96,6 +98,14 @@ interface StoreState {
   exportAsImage(format?: 'png' | 'webp' | 'svg'): Promise<void>
   importLayout(file: File): Promise<void>
   _generateSVG(): Promise<string>
+
+  // ── Error Log ─────────────────────────────────────────────
+  addError(type: ErrorLogEntry['type'], message: string, context?: ErrorLogEntry['context']): void
+  clearErrors(): void
+  dismissError(id: string): void
+  suppressErrorPattern(pattern: string): void
+  unsuppressErrorPattern(pattern: string): void
+  clearSuppressedErrors(): void
 }
 
 function pickColor(index: number): string {
@@ -173,6 +183,8 @@ export const useStore = create<StoreState>()(
       undoStack: [],
       redoStack: [],
       imageCache: {},
+      errorLog: [],
+      suppressedErrors: new Set(),
 
       // ── Layout ──────────────────────────────────────────
 
@@ -312,18 +324,40 @@ export const useStore = create<StoreState>()(
       },
 
       cluster() {
-        const { pieces, wall, gap, snapEnabled, gridSize, enabledPatterns, allowOverlap } = get()
+        const { pieces, wall, gap, snapEnabled, gridSize, enabledPatterns, allowOverlap, suppressedErrors } = get()
+        
+        // Helper to check if error is suppressed and conditionally show toast/log
+        function logError(type: ErrorLogEntry['type'], msg: string, context?: ErrorLogEntry['context']) {
+          const patternKey = `${type}:${msg}`
+          if (suppressedErrors.has(patternKey)) {
+            return // Suppressed, don't show toast or log
+          }
+          toast.error(msg)
+          get().addError(type, msg, context)
+        }
         
         // Check if there are any enabled patterns
         if (enabledPatterns.length === 0) {
-          toast.error('Cannot re-arrange: No patterns are enabled. Please enable at least one pattern in the settings.')
+          const msg = 'Cannot re-arrange: No patterns are enabled. Please enable at least one pattern in the settings.'
+          logError('pattern', msg, {
+            pieceCount: pieces.length,
+            wallSize: { width: wall.width, height: wall.height },
+            gap,
+            allowOverlap,
+          })
           return
         }
         
         // Check feasibility before clustering
         const feasibilityCheck = checkClusterFeasibility(pieces, wall, gap)
         if (!feasibilityCheck.feasible) {
-          toast.error(`Cannot re-arrange: ${feasibilityCheck.reason}. Try: reducing gap, enabling overlap, or using a larger wall.`)
+          const msg = `Cannot re-arrange: ${feasibilityCheck.reason}. Try: reducing gap, enabling overlap, or using a larger wall.`
+          logError('feasibility', msg, {
+            pieceCount: pieces.length,
+            wallSize: { width: wall.width, height: wall.height },
+            gap,
+            allowOverlap,
+          })
           return
         }
         
@@ -337,7 +371,14 @@ export const useStore = create<StoreState>()(
           
           // Check if overlaps still exist after resolution
           if (hasOverlaps(clustered, gap)) {
-            toast.error(`Cannot re-arrange with ${patternName} pattern: Pieces cannot fit without overlapping. Try: reducing gap, enabling overlap, using a larger wall, or removing some pieces.`)
+            const msg = `Cannot re-arrange with ${patternName} pattern: Pieces cannot fit without overlapping. Try: reducing gap, enabling overlap, using a larger wall, or removing some pieces.`
+            logError('overlap', msg, {
+              patternName,
+              pieceCount: pieces.length,
+              wallSize: { width: wall.width, height: wall.height },
+              gap,
+              allowOverlap,
+            })
             return
           }
         }
@@ -743,6 +784,59 @@ export const useStore = create<StoreState>()(
         }
 
         set({ wall, pieces: migratedPieces, imageCache: newCache, selectedId: null, undoStack: [], redoStack: [] })
+      },
+
+      // ── Error Log ───────────────────────────────────────────
+
+      addError(type, message, context) {
+        const { suppressedErrors } = get()
+        
+        // Create a pattern key for suppression
+        const patternKey = `${type}:${message}`
+        
+        // Check if this error pattern is suppressed
+        if (suppressedErrors.has(patternKey)) {
+          return
+        }
+        
+        const entry: ErrorLogEntry = {
+          id: `err-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: Date.now(),
+          type,
+          message,
+          context,
+          dismissed: false,
+        }
+        
+        set((s) => ({ errorLog: [...s.errorLog, entry] }))
+      },
+
+      clearErrors() {
+        set({ errorLog: [] })
+      },
+
+      dismissError(id) {
+        set((s) => ({
+          errorLog: s.errorLog.map((e) => (e.id === id ? { ...e, dismissed: true } : e)),
+        }))
+      },
+
+      suppressErrorPattern(pattern) {
+        set((s) => ({
+          suppressedErrors: new Set([...s.suppressedErrors, pattern]),
+        }))
+      },
+
+      unsuppressErrorPattern(pattern) {
+        set((s) => {
+          const newSet = new Set(s.suppressedErrors)
+          newSet.delete(pattern)
+          return { suppressedErrors: newSet }
+        })
+      },
+
+      clearSuppressedErrors() {
+        set({ suppressedErrors: new Set() })
       },
     }),
 
