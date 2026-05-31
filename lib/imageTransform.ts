@@ -138,3 +138,34 @@ export async function createPreviewUrl(file: File): Promise<string> {
     reader.readAsDataURL(file)
   })
 }
+
+/**
+ * Compress a data URL image for export (reduce file size)
+ * Converts to JPEG and reduces quality to balance size vs quality
+ */
+export async function compressDataUrlForExport(
+  dataUrl: string,
+  maxDimension = 2048,
+  quality = 0.80
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    
+    img.onload = () => {
+      const scale = Math.min(1, maxDimension / Math.max(img.width, img.height))
+      
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width * scale
+      canvas.height = img.height * scale
+      
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      
+      // Convert to JPEG with reduced quality for smaller file size
+      resolve(canvas.toDataURL('image/jpeg', quality))
+    }
+    
+    img.onerror = () => reject(new Error('Failed to load image'))
+    img.src = dataUrl
+  })
+}

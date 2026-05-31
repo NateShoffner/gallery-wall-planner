@@ -6,6 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSpinner, faXmark, faRotate, faCrop } from '@fortawesome/free-solid-svg-icons'
 import { processImageWithAI } from '@/lib/aiImageProcessor'
 import { compressImageForAI, transformImage, createPreviewUrl } from '@/lib/imageTransform'
+import { useStore } from '@/store/useStore'
 import type { AIProcessingData } from '@/types'
 
 interface ImageProcessModalProps {
@@ -92,13 +93,16 @@ export function ImageProcessModal({
     setError(null)
     
     try {
+      // Get API key from store
+      const apiKey = useStore.getState().openaiApiKey
+      
       // 1. Compress for API
       toast.loading('Compressing image...', { id: 'ai-process' })
       const compressed = await compressImageForAI(file)
       
-      // 2. Call AI API
+      // 2. Call AI API with user's API key
       toast.loading('Analyzing image with AI...', { id: 'ai-process' })
-      const result = await processImageWithAI(compressed)
+      const result = await processImageWithAI(compressed, 1024, apiKey)
       
       setAiResult(result)
       setManualRotation(result.rotation)

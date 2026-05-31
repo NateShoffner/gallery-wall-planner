@@ -24,6 +24,7 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
   const removePiece = useStore((s) => s.removePiece)
   const setPieceImage = useStore((s) => s.setPieceImage)
   const clearPieceImage = useStore((s) => s.clearPieceImage)
+  const clearPieceAIData = useStore((s) => s.clearPieceAIData)
   const reprocessPieceWithAI = useStore((s) => s.reprocessPieceWithAI)
 
   const imgRef = useRef<HTMLInputElement>(null)
@@ -65,9 +66,10 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
         return
       }
       
-      setSelectedImageFile(f)
-      setReprocessMode(false)
-      setImageProcessModalOpen(true)
+      // Directly upload the image without AI processing modal
+      void setPieceImage(piece.id, f).then(() => {
+        toast.success('Image added successfully')
+      })
     }
     e.target.value = ''
   }
@@ -296,7 +298,7 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
                   }}
                 >
                   <FontAwesomeIcon icon={faImage} className="text-xs" />
-                  Attached
+                  Image Added
                 </button>
                 
                 {piece.aiProcessed ? (
@@ -377,6 +379,50 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
               >
                 <FontAwesomeIcon icon={faMicrochip} /> Process with AI Now
               </button>
+            </div>
+          )}
+          
+          {thumbnail && piece.aiProcessed && (
+            <div 
+              className="p-3 rounded"
+              style={{
+                background: 'rgba(59, 130, 246, 0.08)',
+                border: '1px solid rgba(59, 130, 246, 0.2)',
+              }}
+            >
+              <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+                <FontAwesomeIcon icon={faMicrochip} /> AI processed with {(piece.aiProcessingData!.confidence * 100).toFixed(0)}% confidence
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleRetroactiveAIProcessing}
+                  className="flex-1 px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
+                  style={{
+                    background: 'var(--bg-input)',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                  title="Reprocess with AI (adjust rotation/crop)"
+                >
+                  <FontAwesomeIcon icon={faMicrochip} /> Reprocess
+                </button>
+                <button
+                  onClick={() => {
+                    // Remove AI data without opening modal
+                    clearPieceAIData(piece.id)
+                    toast.success('AI processing removed. Image kept as-is.')
+                  }}
+                  className="flex-1 px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
+                  style={{
+                    background: 'var(--bg-input)',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                  title="Remove AI processing data (keep transformed image)"
+                >
+                  Undo AI
+                </button>
+              </div>
             </div>
           )}
         </div>

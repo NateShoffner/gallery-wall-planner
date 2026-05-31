@@ -1,22 +1,5 @@
 import OpenAI from 'openai'
 
-// Singleton client instance
-let openaiClient: OpenAI | null = null
-
-export function getOpenAIClient(): OpenAI {
-  if (!openaiClient) {
-    const apiKey = process.env.OPENAI_API_KEY
-    
-    if (!apiKey) {
-      throw new Error('OPENAI_API_KEY environment variable is not set')
-    }
-    
-    openaiClient = new OpenAI({ apiKey })
-  }
-  
-  return openaiClient
-}
-
 export interface AIAnalysisResult {
   rotation: number  // degrees (-45 to +45)
   bounds: {         // normalized 0-1 coordinates
@@ -29,9 +12,10 @@ export interface AIAnalysisResult {
 }
 
 export async function analyzeImageWithGPT4(
-  imageDataUrl: string
+  imageDataUrl: string,
+  apiKey: string
 ): Promise<AIAnalysisResult> {
-  const openai = getOpenAIClient()
+  const openai = new OpenAI({ apiKey })
   
   const response = await openai.chat.completions.create({
     model: 'gpt-4o',

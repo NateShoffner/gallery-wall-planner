@@ -12,6 +12,17 @@ interface ProcessImageRequest {
 
 export async function POST(request: NextRequest) {
   try {
+    // Get API key from header (user-provided) or fall back to env variable
+    const userApiKey = request.headers.get('X-OpenAI-API-Key')
+    const apiKey = userApiKey || process.env.OPENAI_API_KEY
+    
+    if (!apiKey) {
+      return NextResponse.json(
+        { success: false, error: 'OpenAI API key not configured. Please provide your own API key in Settings.' },
+        { status: 401 }
+      )
+    }
+    
     // Parse request body
     const body: ProcessImageRequest = await request.json()
     
@@ -37,8 +48,8 @@ export async function POST(request: NextRequest) {
     const maxSize = body.maxSize || 1024
     const compressedImage = await compressImageForAI(body.imageData, maxSize)
     
-    // Call GPT-4 Vision API
-    const analysis = await analyzeImageWithGPT4(compressedImage)
+    // Call GPT-4 Vision API with the provided API key
+    const analysis = await analyzeImageWithGPT4(compressedImage, apiKey)
     
     // Check confidence threshold (30%)
     if (analysis.confidence < 0.3) {

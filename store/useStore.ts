@@ -14,6 +14,7 @@ import {
 import {
   storeImage, getAllImages, deleteImage, clearAllImages, fileToDataUrl,
 } from '@/lib/imageStore'
+import { compressDataUrlForExport } from '@/lib/imageTransform'
 import type { Piece, Wall, WorkArea, HistorySnapshot, LayoutExport, MeasureUnit, ClusterPattern, ErrorLogEntry, AIProcessingData } from '@/types'
 
 const MAX_HISTORY = 50
@@ -38,6 +39,7 @@ interface StoreState {
   unit: MeasureUnit
   theme: 'dark' | 'light'
   enabledPatterns: ClusterPattern[]
+  openaiApiKey: string | null
   pieces: Piece[]
   _nextId: number
   _colorIndex: number
@@ -66,6 +68,7 @@ interface StoreState {
   setUnit(u: MeasureUnit): void
   setTheme(t: 'dark' | 'light'): void
   setEnabledPatterns(patterns: ClusterPattern[]): void
+  setOpenAIApiKey(key: string | null): void
   selectPiece(id: string | null): void
   addPiece(w: number, h: number): void
   removePiece(id: string): void
@@ -93,6 +96,7 @@ interface StoreState {
   initImages(): Promise<void>
   setPieceImage(pieceId: string, file: File, aiData?: AIProcessingData): Promise<void>
   clearPieceImage(pieceId: string): Promise<void>
+  clearPieceAIData(pieceId: string): void
   setWallBgImage(file: File): Promise<void>
   setWallBgImageDataUrl(dataUrl: string): Promise<void>
   clearWallBgImage(): Promise<void>
@@ -185,6 +189,7 @@ export const useStore = create<StoreState>()(
       unit: 'in',
       theme: 'dark',
       enabledPatterns: [...ALL_PATTERNS],
+      openaiApiKey: null,
       pieces: [],
       selectedId: null,
       _nextId: 1,
@@ -242,6 +247,9 @@ export const useStore = create<StoreState>()(
       },
       setEnabledPatterns(patterns) {
         set({ enabledPatterns: patterns.length > 0 ? patterns : [...ALL_PATTERNS] })
+      },
+      setOpenAIApiKey(key) {
+        set({ openaiApiKey: key })
       },
       selectPiece(id) {
         set({ selectedId: id })
@@ -560,6 +568,28 @@ export const useStore = create<StoreState>()(
       async initImages() {
         const images = await getAllImages()
         set({ imageCache: images })
+        
+        // Clean up orphaned imageIds (pieces that reference images that don't exist)
+        const { pieces, wall } = get()
+        let needsUpdate = false
+        
+        const cleanedPieces = pieces.map(p => {
+          if (p.imageId && !images[p.imageId]) {
+            needsUpdate = true
+            return { ...p, imageId: null, aiProcessed: false, aiProcessingData: undefined }
+          }
+          return p
+        })
+        
+        let cleanedWall = wall
+        if (wall.imageId && !images[wall.imageId]) {
+          needsUpdate = true
+          cleanedWall = { ...wall, imageId: null }
+        }
+        
+        if (needsUpdate) {
+          set({ pieces: cleanedPieces, wall: cleanedWall })
+        }
       },
 
       async setPieceImage(pieceId, file, aiData) {
@@ -594,6 +624,16 @@ export const useStore = create<StoreState>()(
         set((s) => ({
           imageCache: Object.fromEntries(Object.entries(s.imageCache).filter(([k]) => k !== oldId)),
           pieces: s.pieces.map((p) => (p.id === pieceId ? { ...p, imageId: null, aiProcessed: false, aiProcessingData: undefined } : p)),
+        }))
+      },
+      
+      clearPieceAIData(pieceId) {
+        set((s) => ({
+          pieces: s.pieces.map((p) => 
+            p.id === pieceId 
+              ? { ...p, aiProcessed: false, aiProcessingData: undefined } 
+              : p
+          ),
         }))
       },
 
@@ -779,9 +819,19 @@ export const useStore = create<StoreState>()(
         if (wall.imageId) usedIds.add(wall.imageId)
         pieces.forEach((p) => { if (p.imageId) usedIds.add(p.imageId) })
 
+        // Compress images before export to reduce file size
         const images: Record<string, string> = {}
         for (const id of usedIds) {
-          if (imageCache[id]) images[id] = imageCache[id]!
+          if (imageCache[id]) {
+            try {
+              // Compress to max 2048px with 80% quality (JPEG)
+              images[id] = await compressDataUrlForExport(imageCache[id]!, 2048, 0.80)
+            } catch (error) {
+              console.warn(`Failed to compress image ${id}, using original:`, error)
+              // Fallback to original if compression fails
+              images[id] = imageCache[id]!
+            }
+          }
         }
 
         const payload: LayoutExport = { version: 3, wall, pieces, images }
@@ -897,7 +947,9 @@ export const useStore = create<StoreState>()(
       },
       
       getUnprocessedPieceCount() {
-        return get().pieces.filter(p => p.imageId && !p.aiProcessed).length
+        const { pieces, imageCache } = get()
+        // Only count pieces that have an image AND the image exists in cache
+        return pieces.filter(p => p.imageId && !p.aiProcessed && imageCache[p.imageId]).length
       },
     }),
 

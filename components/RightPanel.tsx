@@ -3,19 +3,16 @@
 import { useRef, useState, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
-  faLock, faLockOpen, faTrash, faImage, faRotateLeft, faRotateRight,
-  faGear, faBorderAll, faSun, faMoon, faXmark, faCheck,
-  faRulerCombined, faEyeSlash, faMicrochip,
+  faImage, faGear, faBorderAll, faSun, faMoon, faXmark,
+  faRulerCombined, faEyeSlash,
 } from '@fortawesome/free-solid-svg-icons'
-import toast from 'react-hot-toast'
 import { useStore } from '@/store/useStore'
 import { toDisplayUnit, fromDisplayUnit, unitSuffix, unitStep } from '@/lib/utils'
 import { PATTERN_LABELS } from '@/lib/constants'
-import type { Piece, MeasureUnit, ClusterPattern, WorkArea, AIProcessingData } from '@/types'
+import type { MeasureUnit, ClusterPattern, WorkArea } from '@/types'
 import { WallAreaModal } from '@/components/WallAreaModal'
 import { ErrorLogSection } from '@/components/ErrorLogSection'
 import { HistorySection } from '@/components/HistorySection'
-import { ImageProcessModal } from '@/components/ImageProcessModal'
 import { PrivacyModal } from '@/components/PrivacyModal'
 
 // ── SVG Pattern Previews ────────────────────────────────────────
@@ -178,67 +175,6 @@ function FormRow({ label, children, wide }: {
   )
 }
 
-function NumInput({
-  value,
-  onChange,
-  min,
-  max,
-  step = 1,
-  unit,
-  minWidth,
-}: {
-  value: number
-  onChange: (v: number) => void
-  min?: number
-  max?: number
-  step?: number
-  unit?: string
-  minWidth?: number
-}) {
-  const [local, setLocal] = useState(String(value))
-  useEffect(() => { setLocal(String(Math.round(value * 100) / 100)) }, [value])
-
-  function commit() {
-    const v = parseFloat(local)
-    if (!isNaN(v)) onChange(v)
-    else setLocal(String(value))
-  }
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <input
-        type="number"
-        value={local}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(e) => setLocal(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') commit()
-          if (e.key === 'Escape') setLocal(String(value))
-        }}
-        className="px-2.5 py-1.5 rounded text-sm tabular-nums text-right"
-        style={{
-          background: 'var(--bg-input)',
-          border: '1px solid var(--border-subtle)',
-          color: 'var(--text-primary)',
-          outline: 'none',
-          minWidth: minWidth ?? 60,
-          width: minWidth ?? 60,
-        }}
-        onFocus={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--accent-blue)' }}
-        onBlurCapture={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-subtle)' }}
-      />
-      {unit && (
-        <span className="text-xs flex-shrink-0 w-6 text-left" style={{ color: 'var(--text-muted)' }}>
-          {unit}
-        </span>
-      )}
-    </div>
-  )
-}
-
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
@@ -252,51 +188,6 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
         className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
         style={{ transform: checked ? 'translateX(16px)' : 'translateX(0)' }}
       />
-    </button>
-  )
-}
-
-function PanelBtn({
-  children,
-  onClick,
-  title,
-  variant = 'default',
-  disabled,
-  small,
-}: {
-  children: React.ReactNode
-  onClick?: () => void
-  title?: string
-  variant?: 'default' | 'danger' | 'active' | 'warning'
-  disabled?: boolean
-  small?: boolean
-}) {
-  const styles: Record<string, { bg: string; color: string }> = {
-    default: { bg: 'var(--bg-elevated)', color: 'var(--text-secondary)' },
-    danger:  { bg: 'transparent', color: 'var(--text-muted)' },
-    active:  { bg: 'var(--accent-blue)', color: 'white' },
-    warning: { bg: 'rgba(251,191,36,0.12)', color: '#fde68a' },
-  }
-  const s = styles[variant] ?? styles.default
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      disabled={disabled}
-      className={`flex items-center justify-center gap-1.5 px-3 rounded text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed ${small ? 'py-1' : 'py-2'}`}
-      style={{ background: s.bg, color: s.color, border: '1px solid var(--border-subtle)', flex: 1 }}
-      onMouseEnter={(e) => {
-        if (!disabled) {
-          if (variant === 'danger') { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#f87171' }
-          else e.currentTarget.style.background = 'var(--bg-hover)'
-        }
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = s.bg
-        e.currentTarget.style.color = s.color
-      }}
-    >
-      {children}
     </button>
   )
 }
@@ -421,7 +312,7 @@ function WallSettings({ unit }: { unit: MeasureUnit }) {
             }}
           >
             <FontAwesomeIcon icon={faImage} className="text-xs flex-shrink-0" />
-            {wall.imageId ? 'Attached' : 'Add photo'}
+            {wall.imageId ? 'Photo Added' : 'Add photo'}
           </button>
           {wall.imageId && (
             <>

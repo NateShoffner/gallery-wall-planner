@@ -162,7 +162,6 @@ function HistorySection() {
 export function Sidebar() {
   const pieces = useStore((s) => s.pieces)
   const selectedId = useStore((s) => s.selectedId)
-  const selectedPiece = useStore((s) => s.pieces.find((p) => p.id === s.selectedId))
   const unit = useStore((s) => s.unit)
   const addPiece = useStore((s) => s.addPiece)
 

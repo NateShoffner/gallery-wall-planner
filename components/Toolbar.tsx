@@ -9,6 +9,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons'
 import { useStore } from '@/store/useStore'
 import { BatchAIProcessModal } from '@/components/BatchAIProcessModal'
+import toast from 'react-hot-toast'
 import type { ZoomMode } from '@/app/page'
 
 function Btn({
@@ -111,6 +112,7 @@ export function Toolbar({
   const importLayout = useStore((s) => s.importLayout)
   const getUnprocessedPieceCount = useStore((s) => s.getUnprocessedPieceCount)
   const pieces = useStore((s) => s.pieces)
+  const imageCache = useStore((s) => s.imageCache)
 
   const importRef = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState<PendingAction>(null)
@@ -120,8 +122,9 @@ export function Toolbar({
   // Batch AI processing state
   const [batchProcessModalOpen, setBatchProcessModalOpen] = useState(false)
   const unprocessedCount = getUnprocessedPieceCount()
+  // Only include pieces that have images in cache
   const unprocessedPieceIds = pieces
-    .filter(p => p.imageId && !p.aiProcessed)
+    .filter(p => p.imageId && !p.aiProcessed && imageCache[p.imageId])
     .map(p => p.id)
 
   const isFit = zoomMode === 'fit'
@@ -178,6 +181,17 @@ export function Toolbar({
   async function handleExport(format: 'png' | 'webp' | 'svg') {
     setShowExportMenu(false)
     await exportAsImage(format)
+  }
+  
+  async function handleExportLayout() {
+    toast.loading('Compressing images for export...', { id: 'export-layout' })
+    try {
+      await exportLayout()
+      toast.success('Plan exported successfully!', { id: 'export-layout' })
+    } catch (error) {
+      toast.error('Failed to export plan', { id: 'export-layout' })
+      console.error('Export error:', error)
+    }
   }
 
   return (
@@ -319,7 +333,7 @@ export function Toolbar({
       <Btn onClick={() => importRef.current?.click()} title="Import plan from JSON">
         <FontAwesomeIcon icon={faFileImport} /> Import Plan
       </Btn>
-      <Btn onClick={() => void exportLayout()} title="Export plan as JSON">
+      <Btn onClick={() => void handleExportLayout()} title="Export plan as JSON (images will be compressed)">
         <FontAwesomeIcon icon={faFileExport} /> Export Plan
       </Btn>
       

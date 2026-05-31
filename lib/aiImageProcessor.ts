@@ -17,13 +17,15 @@ interface APIResponse {
  */
 export async function processImageWithAI(
   imageDataUrl: string,
-  maxSize = 1024
+  maxSize = 1024,
+  apiKey?: string | null
 ): Promise<AIProcessingResult> {
   
   const response = await fetch('/api/process-image', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(apiKey ? { 'X-OpenAI-API-Key': apiKey } : {}),
     },
     body: JSON.stringify({
       imageData: imageDataUrl,

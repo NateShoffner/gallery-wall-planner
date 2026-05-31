@@ -662,7 +662,6 @@ export function WallCanvas({
     const toggleLock = useStore.getState().toggleLock
     const rotatePiece = useStore.getState().rotatePiece
     const updatePiece = useStore.getState().updatePiece
-    const addPiece = useStore.getState().addPiece
     
     // Duplicate: create new piece with offset position
     const handleDuplicate = () => {
