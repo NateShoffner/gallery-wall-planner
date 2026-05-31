@@ -5,7 +5,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faLock, faLockOpen, faTrash, faImage, faRotateLeft, faRotateRight,
   faGear, faBorderAll, faSun, faMoon, faXmark, faCheck,
-  faRulerCombined, faEyeSlash,
+  faRulerCombined, faEyeSlash, faMicrochip,
 } from '@fortawesome/free-solid-svg-icons'
 import toast from 'react-hot-toast'
 import { useStore } from '@/store/useStore'
@@ -842,7 +842,7 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
                   }}
                   title={`AI processed on ${new Date(piece.aiProcessingData?.processedAt || 0).toLocaleDateString()}\nRotation: ${piece.aiProcessingData?.rotation.toFixed(1)}°\nConfidence: ${((piece.aiProcessingData?.confidence || 0) * 100).toFixed(0)}%`}
                 >
-                  🤖 AI ✓
+                  <FontAwesomeIcon icon={faMicrochip} /> AI
                 </span>
               ) : (
                 <span 
@@ -854,7 +854,7 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
                   }}
                   title="Not AI processed"
                 >
-                  🤖 AI ✗
+                  <FontAwesomeIcon icon={faMicrochip} style={{ opacity: 0.5 }} />
                 </span>
               )}
               
@@ -899,17 +899,17 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
             }}
           >
             <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
-              ⚡ This image hasn&apos;t been AI processed
+              <FontAwesomeIcon icon={faMicrochip} /> This image hasn&apos;t been AI processed
             </p>
             <button
               onClick={handleRetroactiveAIProcessing}
-              className="w-full px-3 py-1.5 rounded text-sm font-medium transition-colors"
+              className="w-full px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
               style={{
                 background: 'var(--accent-blue)',
                 color: 'white',
               }}
             >
-              🤖 Process with AI Now
+              <FontAwesomeIcon icon={faMicrochip} /> Process with AI Now
             </button>
           </div>
         )}

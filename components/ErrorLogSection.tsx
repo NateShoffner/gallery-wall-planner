@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faChevronDown,
@@ -15,9 +15,11 @@ import type { ErrorLogEntry } from '@/types'
 
 function formatTime(ts: number): string {
   const diff = Date.now() - ts
-  if (diff < 60_000) return 'just now'
+  if (diff < 10_000) return 'just now'
+  if (diff < 60_000) return `${Math.floor(diff / 1_000)}s ago`
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
-  return `${Math.floor(diff / 3_600_000)}h ago`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
+  return `${Math.floor(diff / 86_400_000)}d ago`
 }
 
 function getErrorIcon(_type: ErrorLogEntry['type']) {
@@ -42,6 +44,15 @@ export function ErrorLogSection() {
   
   const [open, setOpen] = useState(false)
   const [expandedError, setExpandedError] = useState<string | null>(null)
+  const [, setTick] = useState(0)
+
+  // Force re-render every 10 seconds to update timestamps
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick((t) => t + 1)
+    }, 10_000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Only show non-dismissed errors in the count
   const activeErrors = errorLog.filter((e) => !e.dismissed)

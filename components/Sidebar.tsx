@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faPlus, faXmark, faRotateLeft, faRotateRight, faChevronDown, faChevronUp } from '@fortawesome/free-solid-svg-icons'
+import { faPlus, faXmark, faRotateLeft, faRotateRight, faChevronDown, faChevronUp, faSearch } from '@fortawesome/free-solid-svg-icons'
 import { useStore } from '@/store/useStore'
 import { fromDisplayUnit, unitSuffix } from '@/lib/utils'
 import { PieceCard } from '@/components/PieceCard'
@@ -14,16 +14,27 @@ function HistorySection() {
   const redo = useStore((s) => s.redo)
   const restoreSnapshot = useStore((s) => s.restoreSnapshot)
   const [open, setOpen] = useState(true)
+  const [, setTick] = useState(0)
 
   const canUndo = undoStack.length > 0
   const canRedo = redoStack.length > 0
   const total = undoStack.length
 
+  // Force re-render every 10 seconds to update timestamps
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick((t) => t + 1)
+    }, 10_000)
+    return () => clearInterval(interval)
+  }, [])
+
   function formatTime(ts: number): string {
     const diff = Date.now() - ts
-    if (diff < 60_000) return 'just now'
+    if (diff < 10_000) return 'just now'
+    if (diff < 60_000) return `${Math.floor(diff / 1_000)}s ago`
     if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
-    return `${Math.floor(diff / 3_600_000)}h ago`
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
+    return `${Math.floor(diff / 86_400_000)}d ago`
   }
 
   return (
@@ -151,16 +162,27 @@ function HistorySection() {
 export function Sidebar() {
   const pieces = useStore((s) => s.pieces)
   const selectedId = useStore((s) => s.selectedId)
+  const selectedPiece = useStore((s) => s.pieces.find((p) => p.id === s.selectedId))
   const unit = useStore((s) => s.unit)
   const addPiece = useStore((s) => s.addPiece)
 
   const [adding, setAdding] = useState(false)
   const [addW, setAddW] = useState('')
   const [addH, setAddH] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const suf = unitSuffix(unit)
   const exW = unit === 'cm' ? '60' : unit === 'ft' ? '2' : '24'
   const exH = unit === 'cm' ? '90' : unit === 'ft' ? '3' : '36'
+
+  // Filter pieces based on search query
+  const filteredPieces = pieces.filter((piece) => {
+    if (!searchQuery) return true
+    const query = searchQuery.toLowerCase()
+    const name = piece.name.toLowerCase()
+    const size = `${piece.w}x${piece.h}`
+    return name.includes(query) || size.includes(query)
+  })
 
   function handleAdd() {
     const wDisplay = parseFloat(addW)
@@ -281,19 +303,68 @@ export function Sidebar() {
         </div>
       )}
 
-      {/* Piece list */}
-      <div className="flex-1 overflow-y-auto py-2 px-2 flex flex-col gap-0.5">
+      {/* Search bar */}
+      {pieces.length > 0 && (
+        <div
+          className="flex-shrink-0 px-2 py-2"
+          style={{ borderBottom: '1px solid var(--border-subtle)' }}
+        >
+          <div className="relative">
+            <FontAwesomeIcon
+              icon={faSearch}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-xs"
+              style={{ color: 'var(--text-muted)', opacity: 0.5 }}
+            />
+            <input
+              type="text"
+              placeholder="Search items..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 rounded text-sm"
+              style={{
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-primary)',
+                outline: 'none',
+              }}
+              onFocus={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--accent-blue)' }}
+              onBlur={(e) => { (e.target as HTMLInputElement).style.borderColor = 'var(--border-subtle)' }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded text-xs"
+                style={{ color: 'var(--text-muted)', opacity: 0.6 }}
+                onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'var(--bg-hover)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.background = 'transparent' }}
+              >
+                <FontAwesomeIcon icon={faXmark} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Piece list - now scrollable */}
+      <div className="flex-1 overflow-y-auto py-2 px-2 flex flex-col gap-0.5 min-h-0">
         {pieces.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 px-4 text-center">
-            <span className="text-3xl" style={{ opacity: 0.1 }}>🖼</span>
+            <FontAwesomeIcon icon={faPlus} style={{ fontSize: 48, opacity: 0.1, color: 'var(--text-muted)' }} />
             <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               Load <strong style={{ color: 'var(--text-secondary)' }}>Demo</strong> or click{' '}
               <strong style={{ color: 'var(--accent-blue)' }}>+ Add</strong> to get started.
             </p>
           </div>
+        ) : filteredPieces.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full gap-3 px-4 text-center">
+            <FontAwesomeIcon icon={faSearch} style={{ fontSize: 48, opacity: 0.1, color: 'var(--text-muted)' }} />
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              No items match &quot;{searchQuery}&quot;
+            </p>
+          </div>
         ) : (
           <>
-            {pieces.map((piece) => (
+            {filteredPieces.map((piece) => (
               <PieceCard key={piece.id} piece={piece} selected={piece.id === selectedId} />
             ))}
           </>

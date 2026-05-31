@@ -165,6 +165,7 @@ export function applyResize(
   rotation: number,
   localDx: number,
   localDy: number,
+  maintainAspectRatio = false,
 ): { x: number; y: number; w: number; h: number } {
   const R = (rotation * Math.PI) / 180
   const cosR = Math.cos(R)
@@ -180,8 +181,29 @@ export function applyResize(
   if (handle.includes('s')) { dh = localDy; anchorLy = -startH / 2 }
   if (handle.includes('n')) { dh = -localDy; anchorLy = startH / 2 }
 
-  const newW = Math.max(1, startW + dw)
-  const newH = Math.max(1, startH + dh)
+  let newW = Math.max(1, startW + dw)
+  let newH = Math.max(1, startH + dh)
+
+  // Maintain aspect ratio if shift key is pressed
+  if (maintainAspectRatio) {
+    const aspectRatio = startW / startH
+    
+    // For corner handles, lock both dimensions to original aspect ratio
+    if ((handle.includes('n') || handle.includes('s')) && (handle.includes('e') || handle.includes('w'))) {
+      // Use the larger delta to determine which dimension drives the resize
+      if (Math.abs(dw) > Math.abs(dh * aspectRatio)) {
+        newH = newW / aspectRatio
+      } else {
+        newW = newH * aspectRatio
+      }
+    }
+    // For edge handles, adjust the other dimension to maintain ratio
+    else if (handle.includes('e') || handle.includes('w')) {
+      newH = newW / aspectRatio
+    } else if (handle.includes('n') || handle.includes('s')) {
+      newW = newH * aspectRatio
+    }
+  }
 
   const anchorWx = oldCx + cosR * anchorLx - sinR * anchorLy
   const anchorWy = oldCy + sinR * anchorLx + cosR * anchorLy

@@ -5,7 +5,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faRotateLeft, faRotateRight, faWandMagicSparkles, faShuffle,
   faObjectGroup, faFileImport, faFileExport,
-  faCheck, faXmark, faCamera, faChevronDown, faEye,
+  faCheck, faXmark, faCamera, faChevronDown, faEye, faMicrochip,
 } from '@fortawesome/free-solid-svg-icons'
 import { useStore } from '@/store/useStore'
 import { BatchAIProcessModal } from '@/components/BatchAIProcessModal'
@@ -243,7 +243,7 @@ export function Toolbar({
               title={`Process ${unprocessedCount} image${unprocessedCount !== 1 ? 's' : ''} with AI`}
               accent="violet"
             >
-              🤖 Process {unprocessedCount} Image{unprocessedCount !== 1 ? 's' : ''} with AI
+              <FontAwesomeIcon icon={faMicrochip} /> Process {unprocessedCount} Image{unprocessedCount !== 1 ? 's' : ''} with AI
             </Btn>
           )}
 

@@ -344,6 +344,7 @@ export function WallCanvas({
           rs.startX, rs.startY, rs.startW, rs.startH,
           rs.rotation,
           localDx, localDy,
+          e.shiftKey, // Pass shift key state to maintain aspect ratio
         )
 
         rs.currentX = result.x
@@ -377,6 +378,9 @@ export function WallCanvas({
           piecesRef.current, drag.pieceId,
         )
 
+        // Check if position actually changed (more than 0.1 inch to avoid floating point issues)
+        const positionChanged = Math.abs(drag.currentX - drag.startX) > 0.1 || Math.abs(drag.currentY - drag.startY) > 0.1
+
         if (hasConflict || isOob) {
           let finalX = drag.startX
           let finalY = drag.startY
@@ -400,8 +404,12 @@ export function WallCanvas({
           if (finalX !== drag.startX || finalY !== drag.startY) {
             pushHistory(`Move ${pieceName}`)
           }
-        } else {
+        } else if (positionChanged) {
+          // Only push history if position actually changed
           pushHistory(`Move ${pieceName}`)
+          updatePiece(drag.pieceId, { x: drag.currentX, y: drag.currentY })
+        } else {
+          // No change, just update without history
           updatePiece(drag.pieceId, { x: drag.currentX, y: drag.currentY })
         }
         dragRef.current = null
@@ -416,6 +424,9 @@ export function WallCanvas({
           rot.pieceX, rot.pieceY, rot.pieceW, rot.pieceH, rot.currentRotation, rot.pieceMargin,
           piecesRef.current, rot.pieceId,
         )
+
+        // Check if rotation actually changed (more than 1 degree to avoid floating point issues)
+        const rotationChanged = Math.abs(rot.currentRotation - rot.startRotation) > 1
 
         if (hasConflict || isOob) {
           let finalRot = rot.startRotation
@@ -449,8 +460,12 @@ export function WallCanvas({
           } else {
             updatePiece(rot.pieceId, { rotation: finalRot })
           }
-        } else {
+        } else if (rotationChanged) {
+          // Only push history if rotation actually changed
           pushHistory(`Rotate ${pieceName}`)
+          updatePiece(rot.pieceId, { rotation: rot.currentRotation })
+        } else {
+          // No change, just update without history
           updatePiece(rot.pieceId, { rotation: rot.currentRotation })
         }
         rotateRef.current = null
