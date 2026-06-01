@@ -73,6 +73,19 @@ export function PrivacyModal({ onClose }: PrivacyModalProps) {
 
           <section>
             <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+              AI Image Processing
+            </h3>
+            <p className="text-sm leading-relaxed mb-2">
+              When you choose to use AI-powered background removal features, your images are sent to OpenAI's API for processing. 
+              You must provide your own OpenAI API key to use this feature. OpenAI processes your images according to their privacy policy.
+            </p>
+            <p className="text-sm leading-relaxed">
+              Processed images are stored locally on your device and are not retained by our servers or OpenAI beyond the processing moment.
+            </p>
+          </section>
+
+           <section>
+            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
               Data Storage
             </h3>
             <p className="text-sm leading-relaxed mb-2">
@@ -87,18 +100,7 @@ export function PrivacyModal({ onClose }: PrivacyModalProps) {
             </p>
           </section>
 
-          <section>
-            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-              AI Image Processing
-            </h3>
-            <p className="text-sm leading-relaxed">
-              When you choose to use AI-powered background removal features, your images are sent to third-party 
-              AI service providers for processing. These services process your images according to their own privacy policies. 
-              Processed images are stored locally in your browser and are not retained by our servers.
-            </p>
-          </section>
-
-          <section>
+           <section>
             <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
               Analytics & Cookies
             </h3>
@@ -108,15 +110,14 @@ export function PrivacyModal({ onClose }: PrivacyModalProps) {
             </p>
           </section>
 
-          <section>
-            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-              Third-Party Services
-            </h3>
-            <p className="text-sm leading-relaxed">
-              This application may connect to third-party services only when you explicitly choose to use optional features 
-              (such as AI image processing). We are not responsible for the privacy practices of these third-party services.
-            </p>
-          </section>
+           <section>
+             <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+               Third-Party Services
+             </h3>
+             <p className="text-sm leading-relaxed">
+               This application does not connect to any third-party services. All functionality is client-side and runs entirely on your device.
+             </p>
+           </section>
 
           <section>
             <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
