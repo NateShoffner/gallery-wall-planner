@@ -1,94 +1,79 @@
 import OpenAI from 'openai'
 
-export interface AIAnalysisResult {
-  rotation: number  // degrees (-45 to +45)
-  bounds: {         // normalized 0-1 coordinates
-    x: number
-    y: number
-    w: number
-    h: number
+export function getOpenAIClient(apiKey: string) {
+  if (!apiKey) {
+    throw new Error('OpenAI API key is not set')
   }
-  confidence: number  // 0-1
+  return new OpenAI({
+    apiKey,
+    dangerouslyAllowBrowser: true, // Allow API calls from browser
+  })
 }
 
-export async function analyzeImageWithGPT4(
-  imageDataUrl: string,
-  apiKey: string
-): Promise<AIAnalysisResult> {
-  const openai = new OpenAI({ apiKey })
-  
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
+export async function removeBackgroundViaOpenAI(
+  imageBase64: string,
+  apiKey: string,
+): Promise<string> {
+  const client = getOpenAIClient(apiKey)
+
+  // Use GPT-4 Vision with detailed prompt for background removal
+  const response = await client.chat.completions.create({
+    model: 'gpt-4-vision-preview',
     messages: [
       {
         role: 'user',
         content: [
           {
-            type: 'image_url',
-            image_url: {
-              url: imageDataUrl,
-              detail: 'high', // or 'low' for faster/cheaper processing
-            },
+            type: 'text',
+            text: 'Remove the background from this image and return a PNG with transparency. Return ONLY the base64 encoded PNG data, nothing else.',
           },
           {
-            type: 'text',
-            text: `You are analyzing a photo of artwork, a canvas, or a poster that may be tilted or have extra background space.
-
-Your task:
-1. Detect the rotation angle needed to straighten the artwork (range: -45° to +45°)
-   - Negative values = rotate counter-clockwise
-   - Positive values = rotate clockwise
-2. Identify the bounding box of the actual artwork/canvas (ignoring background/wall)
-   - Provide normalized coordinates (0-1 range)
-3. Provide a confidence score for your analysis
-
-Respond ONLY with valid JSON in this exact format:
-{
-  "rotation": <number between -45 and 45>,
-  "bounds": {
-    "x": <number 0-1, left edge position>,
-    "y": <number 0-1, top edge position>,
-    "w": <number 0-1, width>,
-    "h": <number 0-1, height>
-  },
-  "confidence": <number 0-1>
-}
-
-If you cannot detect artwork boundaries confidently, set confidence to 0 and bounds to {"x": 0, "y": 0, "w": 1, "h": 1}.`,
+            type: 'image_url',
+            image_url: {
+              url: `data:image/jpeg;base64,${imageBase64}`,
+            },
           },
         ],
       },
     ],
-    max_tokens: 300,
-    temperature: 0.1, // Low temperature for consistent output
+    max_tokens: 1024,
   })
 
-  const content = response.choices[0].message.content
-  if (!content) {
+  const resultBase64 = response.choices[0]?.message?.content
+  if (!resultBase64) {
     throw new Error('No response from OpenAI')
   }
 
-  try {
-    // Strip markdown code blocks if present (gpt-4o sometimes wraps JSON in ```json)
-    const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-    const result = JSON.parse(cleanContent) as AIAnalysisResult
-    
-    // Validate response structure
-    if (
-      typeof result.rotation !== 'number' ||
-      typeof result.confidence !== 'number' ||
-      !result.bounds ||
-      typeof result.bounds.x !== 'number' ||
-      typeof result.bounds.y !== 'number' ||
-      typeof result.bounds.w !== 'number' ||
-      typeof result.bounds.h !== 'number'
-    ) {
-      throw new Error('Invalid response structure from OpenAI')
-    }
-    
-    return result
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    throw new Error(`Failed to parse OpenAI response: ${errorMessage}`)
-  }
+  return resultBase64
+}
+
+export async function analyzeImageViaOpenAI(
+  imageBase64: string,
+  apiKey: string,
+): Promise<string> {
+  const client = getOpenAIClient(apiKey)
+
+  const response = await client.chat.completions.create({
+    model: 'gpt-4-vision-preview',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: 'Analyze this image and provide a brief description suitable for a gallery wall planner.',
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:image/jpeg;base64,${imageBase64}`,
+            },
+          },
+        ],
+      },
+    ],
+    max_tokens: 512,
+  })
+
+  return response.choices[0]?.message?.content || 'Unable to analyze image'
 }
