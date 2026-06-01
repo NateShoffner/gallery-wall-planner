@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useStore } from '@/store/useStore'
-import { useMenuAndShortcuts } from '@/lib/useMenuAndShortcuts'
 import { Toolbar } from '@/components/Toolbar'
 import { LeftPanel } from '@/components/LeftPanel'
 import { WallCanvas } from '@/components/WallCanvas'
@@ -17,25 +16,9 @@ export default function HomePage() {
   const selectedId = useStore((s) => s.selectedId)
   const removePiece = useStore((s) => s.removePiece)
   const showRulers = useStore((s) => s.showRulers)
-  const resetEverything = useStore((s) => s.resetEverything)
-  const exportLayout = useStore((s) => s.exportLayout)
-  const exportAsImage = useStore((s) => s.exportAsImage)
-  const theme = useStore((s) => s.theme)
-  const setTheme = useStore((s) => s.setTheme)
-  const importLayout = useStore((s) => s.importLayout)
 
   const [zoomMode, setZoomMode] = useState<ZoomMode>('fit')
   const [previewMode, setPreviewMode] = useState(false)
-
-  // Menu and keyboard shortcuts
-  useMenuAndShortcuts({
-    onNewLayout: () => void resetEverything(),
-    onOpenLayout: () => void importLayout(),
-    onSaveLayout: () => void exportLayout(),
-    onExportImage: () => void exportAsImage(),
-    onDeleteSelected: () => selectedId && removePiece(selectedId),
-    onToggleDarkMode: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
-  })
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {

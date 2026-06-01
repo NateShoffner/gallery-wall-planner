@@ -1,8 +1,6 @@
 'use client'
 
 import { useRef, useEffect, useState, ReactNode } from 'react'
-import { isDesktop } from '@/lib/platform'
-import { Store } from '@tauri-apps/plugin-store'
 
 interface ResizablePanelProps {
   children: ReactNode
@@ -13,15 +11,6 @@ interface ResizablePanelProps {
   storageKey: string
   className?: string
   style?: React.CSSProperties
-}
-
-let tauriStore: Store | null = null
-
-async function getTauriStore(): Promise<Store> {
-  if (!tauriStore) {
-    tauriStore = await Store.load('settings.json')
-  }
-  return tauriStore
 }
 
 export function ResizablePanel({
@@ -40,50 +29,20 @@ export function ResizablePanel({
   const startXRef = useRef(0)
   const startWidthRef = useRef(0)
 
-  // Load width from storage on mount
+  // Load width from localStorage on mount
   useEffect(() => {
-    const loadWidth = async () => {
-      try {
-        let stored: string | null | undefined = null
-        
-        if (isDesktop()) {
-          const store = await getTauriStore()
-          stored = await store.get<string>(storageKey)
-        } else {
-          stored = localStorage.getItem(storageKey)
-        }
-        
-        if (stored) {
-          const parsed = parseInt(stored, 10)
-          if (!isNaN(parsed) && parsed >= minWidth && parsed <= maxWidth) {
-            setWidth(parsed)
-          }
-        }
-      } catch (error) {
-        console.error('Failed to load panel width:', error)
+    const stored = localStorage.getItem(storageKey)
+    if (stored) {
+      const parsed = parseInt(stored, 10)
+      if (!isNaN(parsed) && parsed >= minWidth && parsed <= maxWidth) {
+        setWidth(parsed)
       }
     }
-    
-    loadWidth()
   }, [storageKey, minWidth, maxWidth])
 
-  // Save width to storage when it changes
+  // Save width to localStorage when it changes
   useEffect(() => {
-    const saveWidth = async () => {
-      try {
-        if (isDesktop()) {
-          const store = await getTauriStore()
-          await store.set(storageKey, String(width))
-          await store.save()
-        } else {
-          localStorage.setItem(storageKey, String(width))
-        }
-      } catch (error) {
-        console.error('Failed to save panel width:', error)
-      }
-    }
-    
-    saveWidth()
+    localStorage.setItem(storageKey, String(width))
   }, [width, storageKey])
 
   const handleMouseDown = (e: React.MouseEvent) => {

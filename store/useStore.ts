@@ -1,7 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
+import { persist } from 'zustand/middleware'
 import toast from 'react-hot-toast'
 import { COLORS, DEFAULT_PIECE_MARGIN, DEFAULT_GAP, DEMO_SPECS, PATTERN_LABELS } from '@/lib/constants'
 import {
@@ -13,12 +13,9 @@ import {
 } from '@/lib/utils'
 import {
   storeImage, getAllImages, deleteImage, clearAllImages, fileToDataUrl,
-} from '@/lib/storage'
-import { getStateStorage } from '@/lib/stateStorage'
-import { saveTextFile, saveBinaryFile, openTextFile } from '@/lib/fileDialog'
+} from '@/lib/imageStore'
 import { compressDataUrlForExport } from '@/lib/imageTransform'
-import { removeBackgroundViaOpenAI } from '@/lib/openai'
-import type { Piece, Wall, WorkArea, HistorySnapshot, LayoutExport, MeasureUnit, ClusterPattern, ErrorLogEntry } from '@/types'
+import type { Piece, Wall, WorkArea, HistorySnapshot, LayoutExport, MeasureUnit, ClusterPattern, ErrorLogEntry, AIProcessingData } from '@/types'
 
 const MAX_HISTORY = 50
 
@@ -42,10 +39,10 @@ interface StoreState {
   unit: MeasureUnit
   theme: 'dark' | 'light'
   enabledPatterns: ClusterPattern[]
+  openaiApiKey: string | null
   pieces: Piece[]
   _nextId: number
   _colorIndex: number
-  openaiApiKey: string
 
   // ── Session-only ─────────────────────────────────────────
   selectedId: string | null
@@ -71,6 +68,7 @@ interface StoreState {
   setUnit(u: MeasureUnit): void
   setTheme(t: 'dark' | 'light'): void
   setEnabledPatterns(patterns: ClusterPattern[]): void
+  setOpenAIApiKey(key: string | null): void
   selectPiece(id: string | null): void
   addPiece(w: number, h: number): void
   removePiece(id: string): void
@@ -96,16 +94,21 @@ interface StoreState {
 
   // ── Images ───────────────────────────────────────────────
   initImages(): Promise<void>
-  setPieceImage(pieceId: string, file: File): Promise<void>
+  setPieceImage(pieceId: string, file: File, aiData?: AIProcessingData): Promise<void>
   clearPieceImage(pieceId: string): Promise<void>
+  clearPieceAIData(pieceId: string): void
   setWallBgImage(file: File): Promise<void>
   setWallBgImageDataUrl(dataUrl: string): Promise<void>
   clearWallBgImage(): Promise<void>
+  
+  // ── AI Processing ────────────────────────────────────────
+  reprocessPieceWithAI(pieceId: string): Promise<File>
+  getUnprocessedPieceCount(): number
 
   // ── Import / Export ───────────────────────────────────────
   exportLayout(): Promise<void>
   exportAsImage(format?: 'png' | 'webp' | 'svg'): Promise<void>
-  importLayout(file?: File): Promise<void>
+  importLayout(file: File): Promise<void>
   _generateSVG(): Promise<string>
 
   // ── Error Log ─────────────────────────────────────────────
@@ -114,13 +117,7 @@ interface StoreState {
   dismissError(id: string): void
   suppressErrorPattern(pattern: string): void
   unsuppressErrorPattern(pattern: string): void
-   clearSuppressedErrors(): void
-
-  // ── AI Processing ────────────────────────────────────────
-  setOpenAIApiKey(key: string): void
-  reprocessPieceWithAI(pieceId: string): Promise<void>
-  getUnprocessedPieceCount(): number
-  clearPieceAIData(pieceId: string): void
+  clearSuppressedErrors(): void
 }
 
 function pickColor(index: number): string {
@@ -192,6 +189,7 @@ export const useStore = create<StoreState>()(
       unit: 'in',
       theme: 'dark',
       enabledPatterns: [...ALL_PATTERNS],
+      openaiApiKey: null,
       pieces: [],
       selectedId: null,
       _nextId: 1,
@@ -201,7 +199,6 @@ export const useStore = create<StoreState>()(
       imageCache: {},
       errorLog: [],
       suppressedErrors: new Set(),
-      openaiApiKey: '',
 
       // ── Layout ──────────────────────────────────────────
 
@@ -250,6 +247,9 @@ export const useStore = create<StoreState>()(
       },
       setEnabledPatterns(patterns) {
         set({ enabledPatterns: patterns.length > 0 ? patterns : [...ALL_PATTERNS] })
+      },
+      setOpenAIApiKey(key) {
+        set({ openaiApiKey: key })
       },
       selectPiece(id) {
         set({ selectedId: id })
@@ -576,7 +576,7 @@ export const useStore = create<StoreState>()(
         const cleanedPieces = pieces.map(p => {
           if (p.imageId && !images[p.imageId]) {
             needsUpdate = true
-            return { ...p, imageId: null }
+            return { ...p, imageId: null, aiProcessed: false, aiProcessingData: undefined }
           }
           return p
         })
@@ -592,7 +592,7 @@ export const useStore = create<StoreState>()(
         }
       },
 
-      async setPieceImage(pieceId, file) {
+      async setPieceImage(pieceId, file, aiData) {
         const dataUrl = await fileToDataUrl(file)
         const imageId = `piece-${pieceId}-${Date.now()}`
         const piece = get().pieces.find((p) => p.id === pieceId)
@@ -602,7 +602,15 @@ export const useStore = create<StoreState>()(
           imageCache: { ...s.imageCache, [imageId]: dataUrl },
           pieces: s.pieces.map((p) => 
             p.id === pieceId 
-              ? { ...p, imageId } 
+              ? { 
+                  ...p, 
+                  imageId,
+                  aiProcessed: !!aiData,
+                  aiProcessingData: aiData ? {
+                    ...aiData,
+                    processedAt: Date.now(),
+                  } : undefined,
+                } 
               : p
           ),
         }))
@@ -615,7 +623,17 @@ export const useStore = create<StoreState>()(
         const oldId = piece.imageId
         set((s) => ({
           imageCache: Object.fromEntries(Object.entries(s.imageCache).filter(([k]) => k !== oldId)),
-          pieces: s.pieces.map((p) => (p.id === pieceId ? { ...p, imageId: null } : p)),
+          pieces: s.pieces.map((p) => (p.id === pieceId ? { ...p, imageId: null, aiProcessed: false, aiProcessingData: undefined } : p)),
+        }))
+      },
+      
+      clearPieceAIData(pieceId) {
+        set((s) => ({
+          pieces: s.pieces.map((p) => 
+            p.id === pieceId 
+              ? { ...p, aiProcessed: false, aiProcessingData: undefined } 
+              : p
+          ),
         }))
       },
 
@@ -657,16 +675,17 @@ export const useStore = create<StoreState>()(
 
       async exportAsImage(format: 'png' | 'webp' | 'svg' = 'png') {
         const { wall, pieces, imageCache } = get()
-        const dateStr = new Date().toISOString().slice(0, 10)
         
         if (format === 'svg') {
           // SVG export
           const svg = await get()._generateSVG()
-          await saveTextFile(
-            `wall-planner-${dateStr}.svg`,
-            svg,
-            [{ name: 'SVG Image', extensions: ['svg'] }]
-          )
+          const blob = new Blob([svg], { type: 'image/svg+xml' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `wall-planner-${new Date().toISOString().slice(0, 10)}.svg`
+          a.click()
+          URL.revokeObjectURL(url)
           return
         }
         
@@ -745,16 +764,14 @@ export const useStore = create<StoreState>()(
         const mimeType = format === 'webp' ? 'image/webp' : 'image/png'
         const extension = format === 'webp' ? 'webp' : 'png'
         
-        offscreen.toBlob(async (blob) => {
+        offscreen.toBlob((blob) => {
           if (!blob) return
-          const arrayBuffer = await blob.arrayBuffer()
-          const filterName = format === 'webp' ? 'WebP Image' : 'PNG Image'
-          await saveBinaryFile(
-            `wall-planner-${dateStr}.${extension}`,
-            new Uint8Array(arrayBuffer),
-            mimeType,
-            [{ name: filterName, extensions: [extension] }]
-          )
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `wall-planner-${new Date().toISOString().slice(0, 10)}.${extension}`
+          a.click()
+          URL.revokeObjectURL(url)
         }, mimeType)
       },
 
@@ -818,29 +835,17 @@ export const useStore = create<StoreState>()(
         }
 
         const payload: LayoutExport = { version: 3, wall, pieces, images }
-        const json = JSON.stringify(payload, null, 2)
-        const dateStr = new Date().toISOString().slice(0, 10)
-        
-        await saveTextFile(
-          `wall-planner-${dateStr}.json`,
-          json,
-          [{ name: 'JSON Layout', extensions: ['json'] }]
-        )
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `wall-planner-${new Date().toISOString().slice(0, 10)}.json`
+        a.click()
+        URL.revokeObjectURL(url)
       },
 
-      async importLayout(file?: File) {
-        let text: string | null
-        
-        if (file) {
-          // File provided directly (web file input)
-          text = await file.text()
-        } else {
-          // No file provided - open dialog
-          text = await openTextFile([{ name: 'JSON Layout', extensions: ['json'] }])
-        }
-        
-        if (!text) return // User cancelled dialog
-        
+      async importLayout(file) {
+        const text = await file.text()
         const data = JSON.parse(text) as LayoutExport
 
         if (!data.version || !data.wall || !Array.isArray(data.pieces)) {
@@ -918,91 +923,39 @@ export const useStore = create<StoreState>()(
       clearSuppressedErrors() {
         set({ suppressedErrors: new Set() })
       },
-
-      // ── AI Processing ───────────────────────────────────
-      setOpenAIApiKey(key) {
-        set({ openaiApiKey: key })
-      },
-
+      
+      // ── AI Processing ─────────────────────────────────────────
+      
       async reprocessPieceWithAI(pieceId) {
-        const s = get()
-        if (!s.openaiApiKey) {
-          toast.error('OpenAI API key not set')
-          return
+        const piece = get().pieces.find((p) => p.id === pieceId)
+        
+        if (!piece?.imageId) {
+          throw new Error('Piece has no image')
         }
-
-        const piece = s.pieces.find((p) => p.id === pieceId)
-        if (!piece || !piece.imageId) {
-          toast.error('Piece or image not found')
-          return
+        
+        // Get image data from cache
+        const imageUrl = get().imageCache[piece.imageId]
+        if (!imageUrl) {
+          throw new Error('Image not found in cache')
         }
-
-        const imageBase64 = s.imageCache[piece.imageId]
-        if (!imageBase64) {
-          toast.error('Image not found in cache')
-          return
-        }
-
-         try {
-           const toastId = toast.loading('Processing image with AI...')
-
-           // Call OpenAI background removal
-           const processedBase64 = await removeBackgroundViaOpenAI(
-             imageBase64.split(',')[1] || imageBase64,
-             s.openaiApiKey,
-           )
-
-           // Store the processed image
-           await storeImage(pieceId, processedBase64)
-
-           // Update piece with AI data (same imageId, just add metadata)
-           set((state) => ({
-             pieces: state.pieces.map((p) =>
-               p.id === pieceId
-                 ? {
-                     ...p,
-                     aiProcessingData: {
-                       rotation: p.rotation,
-                       bounds: { x: 0, y: 0, w: 1, h: 1 },
-                       confidence: 0.95,
-                       processedAt: Date.now(),
-                     },
-                   }
-                 : p,
-             ),
-           }))
-
-          toast.success('Image processed successfully', { id: toastId })
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Failed to process image'
-          toast.error(message)
-          s.addError('general', `AI processing failed: ${message}`)
-        }
+        
+        // Convert data URL to File object
+        const blob = await fetch(imageUrl).then(r => r.blob())
+        const file = new File([blob], 'image.jpg', { type: blob.type })
+        
+        return file
       },
-
+      
       getUnprocessedPieceCount() {
-        const s = get()
-        return s.pieces.filter((p) => p.imageId && !p.aiProcessingData).length
-      },
-
-      clearPieceAIData(pieceId) {
-        set((state) => ({
-          pieces: state.pieces.map((p) =>
-            p.id === pieceId
-              ? {
-                  ...p,
-                  aiProcessingData: undefined,
-                }
-              : p,
-          ),
-        }))
+        const { pieces, imageCache } = get()
+        // Only count pieces that have an image AND the image exists in cache
+        return pieces.filter(p => p.imageId && !p.aiProcessed && imageCache[p.imageId]).length
       },
     }),
 
     {
       name: 'canvas-mapper-v1',
       version: 3,
-      storage: createJSONStorage(() => getStateStorage()),
       partialize: (s) => ({
         wall: s.wall,
         gap: s.gap,
@@ -1015,7 +968,6 @@ export const useStore = create<StoreState>()(
         pieces: s.pieces,
         _nextId: s._nextId,
         _colorIndex: s._colorIndex,
-        openaiApiKey: s.openaiApiKey,
       }),
       migrate(raw, version) {
         let state = raw as Record<string, unknown>

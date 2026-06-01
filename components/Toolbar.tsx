@@ -8,10 +8,9 @@ import {
   faCheck, faXmark, faCamera, faChevronDown, faEye, faMicrochip,
 } from '@fortawesome/free-solid-svg-icons'
 import { useStore } from '@/store/useStore'
+import { BatchAIProcessModal } from '@/components/BatchAIProcessModal'
 import toast from 'react-hot-toast'
 import type { ZoomMode } from '@/app/page'
-import { ImageProcessModal } from '@/components/ImageProcessModal'
-import { BatchAIProcessModal } from '@/components/BatchAIProcessModal'
 
 function Btn({
   children,
@@ -111,17 +110,22 @@ export function Toolbar({
   const exportLayout = useStore((s) => s.exportLayout)
   const exportAsImage = useStore((s) => s.exportAsImage)
   const importLayout = useStore((s) => s.importLayout)
-  const selectedId = useStore((s) => s.selectedId)
   const getUnprocessedPieceCount = useStore((s) => s.getUnprocessedPieceCount)
-  const openaiApiKey = useStore((s) => s.openaiApiKey)
+  const pieces = useStore((s) => s.pieces)
+  const imageCache = useStore((s) => s.imageCache)
 
   const importRef = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState<PendingAction>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportMenuRef = useRef<HTMLDivElement>(null)
-  const [imageProcessModalOpen, setImageProcessModalOpen] = useState(false)
+  
+  // Batch AI processing state
   const [batchProcessModalOpen, setBatchProcessModalOpen] = useState(false)
-  const [selectedPieceForProcess, setSelectedPieceForProcess] = useState<string | null>(null)
+  const unprocessedCount = getUnprocessedPieceCount()
+  // Only include pieces that have images in cache
+  const unprocessedPieceIds = pieces
+    .filter(p => p.imageId && !p.aiProcessed && imageCache[p.imageId])
+    .map(p => p.id)
 
   const isFit = zoomMode === 'fit'
   const displayScale = typeof zoomMode === 'number' ? zoomMode : 1
@@ -243,6 +247,19 @@ export function Toolbar({
           >
             <FontAwesomeIcon icon={faObjectGroup} /> Re-arrange
           </Btn>
+
+          <Divider />
+          
+          {/* Batch AI Processing */}
+          {unprocessedCount > 0 && (
+            <Btn
+              onClick={() => setBatchProcessModalOpen(true)}
+              title={`Process ${unprocessedCount} image${unprocessedCount !== 1 ? 's' : ''} with AI`}
+              accent="violet"
+            >
+              <FontAwesomeIcon icon={faMicrochip} /> Process {unprocessedCount} Image{unprocessedCount !== 1 ? 's' : ''} with AI
+            </Btn>
+          )}
 
           <Divider />
 
@@ -385,33 +402,6 @@ export function Toolbar({
         <FontAwesomeIcon icon={faWandMagicSparkles} /> Demo
       </Btn>
 
-      {/* AI Processing Buttons */}
-      {openaiApiKey && (
-        <>
-          <Divider />
-          <Btn
-            onClick={() => {
-              if (selectedId) {
-                setSelectedPieceForProcess(selectedId)
-                setImageProcessModalOpen(true)
-              } else {
-                toast.error('Please select an image to process')
-              }
-            }}
-            title="Process selected image with AI to remove background"
-          >
-            <FontAwesomeIcon icon={faMicrochip} /> Process Image
-          </Btn>
-          <Btn
-            onClick={() => setBatchProcessModalOpen(true)}
-            disabled={getUnprocessedPieceCount() === 0}
-            title={`Batch process ${getUnprocessedPieceCount()} unprocessed images`}
-          >
-            <FontAwesomeIcon icon={faMicrochip} /> Batch Process
-          </Btn>
-        </>
-      )}
-
       <input
         ref={importRef}
         type="file"
@@ -423,20 +413,15 @@ export function Toolbar({
           e.target.value = ''
         }}
       />
-
-      {/* AI Processing Modals */}
-      <ImageProcessModal
-        isOpen={imageProcessModalOpen}
-        onClose={() => {
-          setImageProcessModalOpen(false)
-          setSelectedPieceForProcess(null)
-        }}
-        pieceId={selectedPieceForProcess}
-      />
-      <BatchAIProcessModal
-        isOpen={batchProcessModalOpen}
-        onClose={() => setBatchProcessModalOpen(false)}
-      />
+      
+      {/* Batch AI Process Modal */}
+      {batchProcessModalOpen && unprocessedPieceIds.length > 0 && (
+        <BatchAIProcessModal
+          pieceIds={unprocessedPieceIds}
+          onComplete={() => setBatchProcessModalOpen(false)}
+          onCancel={() => setBatchProcessModalOpen(false)}
+        />
+      )}
     </header>
   )
 }

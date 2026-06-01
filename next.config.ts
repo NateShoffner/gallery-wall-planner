@@ -31,11 +31,6 @@ const nextConfig: NextConfig = {
   
   // Turbopack configuration (empty to silence warning)
   turbopack: {},
-  
-  // Static export for Tauri desktop app
-  output: 'export',
-  distDir: 'out',
-  trailingSlash: true,
 };
 
 export default nextConfig;
