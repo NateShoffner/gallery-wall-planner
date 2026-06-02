@@ -4,13 +4,12 @@ import { useState, useEffect, useRef } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faPlus, faXmark, faSearch, faLock, faLockOpen, faTrash, faImage,
-  faRotateLeft, faRotateRight, faCheck, faMicrochip,
+  faRotateLeft, faRotateRight, faCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import { useStore } from '@/store/useStore'
 import { fromDisplayUnit, unitSuffix, toDisplayUnit, unitStep } from '@/lib/utils'
 import { PieceCard } from '@/components/PieceCard'
-import { ImageProcessModal } from '@/components/ImageProcessModal'
-import type { Piece, MeasureUnit, AIProcessingData } from '@/types'
+import type { Piece, MeasureUnit } from '@/types'
 import toast from 'react-hot-toast'
 
 // ── Piece Properties ───────────────────────────────────────────
@@ -24,8 +23,6 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
   const removePiece = useStore((s) => s.removePiece)
   const setPieceImage = useStore((s) => s.setPieceImage)
   const clearPieceImage = useStore((s) => s.clearPieceImage)
-  const clearPieceAIData = useStore((s) => s.clearPieceAIData)
-  const reprocessPieceWithAI = useStore((s) => s.reprocessPieceWithAI)
 
   const imgRef = useRef<HTMLInputElement>(null)
   const thumbnail = piece.imageId ? imageCache[piece.imageId] : null
@@ -34,11 +31,6 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
 
   const [nameLocal, setNameLocal] = useState(piece.name)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  
-  // AI Processing Modal state
-  const [imageProcessModalOpen, setImageProcessModalOpen] = useState(false)
-  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
-  const [reprocessMode, setReprocessMode] = useState(false)
 
   useEffect(() => { setNameLocal(piece.name) }, [piece.name])
   useEffect(() => {
@@ -66,44 +58,12 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
         return
       }
       
-      // Directly upload the image without AI processing modal
+      // Directly upload the image
       void setPieceImage(piece.id, f).then(() => {
         toast.success('Image added successfully')
       })
     }
     e.target.value = ''
-  }
-  
-  async function handleRetroactiveAIProcessing() {
-    try {
-      const file = await reprocessPieceWithAI(piece.id)
-      setSelectedImageFile(file)
-      setReprocessMode(true)
-      setImageProcessModalOpen(true)
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      toast.error(`Failed to load image: ${errorMessage}`)
-    }
-  }
-  
-  function handleImageProcessed(processedFile: File, aiData?: AIProcessingData) {
-    void setPieceImage(piece.id, processedFile, aiData).then(() => {
-      setImageProcessModalOpen(false)
-      setSelectedImageFile(null)
-      setReprocessMode(false)
-      
-      if (aiData) {
-        toast.success(`Image AI processed! Confidence: ${(aiData.confidence * 100).toFixed(0)}%`)
-      } else {
-        toast.success('Image uploaded successfully')
-      }
-    })
-  }
-  
-  function handleImageProcessCancel() {
-    setImageProcessModalOpen(false)
-    setSelectedImageFile(null)
-    setReprocessMode(false)
   }
 
   const inputStyle = {
@@ -301,32 +261,6 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
                   Image Added
                 </button>
                 
-                {piece.aiProcessed ? (
-                  <span 
-                    className="px-2 py-1 rounded text-xs font-medium flex items-center gap-1 flex-shrink-0"
-                    style={{
-                      background: 'rgba(59, 130, 246, 0.15)',
-                      color: '#93c5fd',
-                      border: '1px solid rgba(59, 130, 246, 0.3)',
-                    }}
-                    title={`AI processed on ${new Date(piece.aiProcessingData?.processedAt || 0).toLocaleDateString()}`}
-                  >
-                    <FontAwesomeIcon icon={faMicrochip} />
-                  </span>
-                ) : (
-                  <span 
-                    className="px-2 py-1 rounded text-xs font-medium flex items-center gap-1 flex-shrink-0"
-                    style={{
-                      background: 'var(--bg-input)',
-                      color: 'var(--text-muted)',
-                      border: '1px solid var(--border-subtle)',
-                    }}
-                    title="Not AI processed"
-                  >
-                    <FontAwesomeIcon icon={faMicrochip} style={{ opacity: 0.5 }} />
-                  </span>
-                )}
-                
                 <button
                   onClick={() => void clearPieceImage(piece.id)}
                   className="w-8 h-8 rounded flex items-center justify-center text-xs flex-shrink-0"
@@ -357,86 +291,8 @@ function PieceProperties({ piece, unit }: { piece: Piece; unit: MeasureUnit }) {
               onChange={handlePieceImageSelect}
             />
           </div>
-          
-          {thumbnail && !piece.aiProcessed && (
-            <div 
-              className="p-3 rounded"
-              style={{
-                background: 'rgba(59, 130, 246, 0.08)',
-                border: '1px solid rgba(59, 130, 246, 0.2)',
-              }}
-            >
-              <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
-                <FontAwesomeIcon icon={faMicrochip} /> This image hasn&apos;t been AI processed
-              </p>
-              <button
-                onClick={handleRetroactiveAIProcessing}
-                className="w-full px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
-                style={{
-                  background: 'var(--accent-blue)',
-                  color: 'white',
-                }}
-              >
-                <FontAwesomeIcon icon={faMicrochip} /> Process with AI Now
-              </button>
-            </div>
-          )}
-          
-          {thumbnail && piece.aiProcessed && (
-            <div 
-              className="p-3 rounded"
-              style={{
-                background: 'rgba(59, 130, 246, 0.08)',
-                border: '1px solid rgba(59, 130, 246, 0.2)',
-              }}
-            >
-              <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
-                <FontAwesomeIcon icon={faMicrochip} /> AI processed with {(piece.aiProcessingData!.confidence * 100).toFixed(0)}% confidence
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleRetroactiveAIProcessing}
-                  className="flex-1 px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
-                  style={{
-                    background: 'var(--bg-input)',
-                    color: 'var(--text-secondary)',
-                    border: '1px solid var(--border-subtle)',
-                  }}
-                  title="Reprocess with AI (adjust rotation/crop)"
-                >
-                  <FontAwesomeIcon icon={faMicrochip} /> Reprocess
-                </button>
-                <button
-                  onClick={() => {
-                    // Remove AI data without opening modal
-                    clearPieceAIData(piece.id)
-                    toast.success('AI processing removed. Image kept as-is.')
-                  }}
-                  className="flex-1 px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
-                  style={{
-                    background: 'var(--bg-input)',
-                    color: 'var(--text-secondary)',
-                    border: '1px solid var(--border-subtle)',
-                  }}
-                  title="Remove AI processing data (keep transformed image)"
-                >
-                  Undo AI
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
-      
-      {imageProcessModalOpen && selectedImageFile && (
-        <ImageProcessModal
-          file={selectedImageFile}
-          onCancel={handleImageProcessCancel}
-          onConfirm={handleImageProcessed}
-          mode={reprocessMode ? 'reprocess' : 'upload'}
-          existingAIData={piece.aiProcessingData}
-        />
-      )}
     </>
   )
 }

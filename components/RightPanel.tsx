@@ -14,6 +14,7 @@ import { WallAreaModal } from '@/components/WallAreaModal'
 import { ErrorLogSection } from '@/components/ErrorLogSection'
 import { HistorySection } from '@/components/HistorySection'
 import { PrivacyModal } from '@/components/PrivacyModal'
+import { APIKeySettings } from '@/components/APIKeySettings'
 
 // ── SVG Pattern Previews ────────────────────────────────────────
 
@@ -694,7 +695,12 @@ function SettingsTab() {
             </button>
           </div>
         </>
-      )}
+       )}
+
+      <SectionHeader sub="Authenticate with OpenAI for AI features">AI Settings</SectionHeader>
+      <div className="px-4 py-3 section-block">
+        <APIKeySettings />
+      </div>
 
       <SectionHeader sub="Remove items or reset everything">Danger Zone</SectionHeader>
       <div className="px-4 py-3 section-block flex flex-col gap-2">
